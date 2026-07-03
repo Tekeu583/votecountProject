@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache"
+         stopOnFailure="false">
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+    <php>
+        <!-- Forcer l'environnement -->
+        <env name="APP_ENV" value="testing"/>
+        <env name="APP_DEBUG" value="true"/>
+        
+        <!-- Base de données -->
+        <env name="DB_CONNECTION" value="pgsql"/>
+        <env name="DB_HOST" value="127.0.0.1"/>
+        <env name="DB_PORT" value="5432"/>
+        <env name="DB_DATABASE" value="votecountproject3_test"/>
+        <env name="DB_USERNAME" value="postgres"/>
+        <env name="DB_PASSWORD" value="password"/>
+        
+        <!-- Forcer le cache driver -->
+        <env name="CACHE_DRIVER" value="array"/>
+        <env name="SESSION_DRIVER" value="array"/>
+        <env name="QUEUE_CONNECTION" value="sync"/>
+        
+        <!-- Autres -->
+        <env name="MAIL_MAILER" value="array"/>
+        <env name="BROADCAST_DRIVER" value="log"/>
+        <env name="BCRYPT_ROUNDS" value="4"/>
+    </php>
+    <source>
+        <include>
+            <directory suffix=".php">./app</directory>
+        </include>
+    </source>
+</phpunit>
