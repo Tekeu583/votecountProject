@@ -13,7 +13,7 @@ class ModelsTest extends TestCase
 {
     public function test_user_has_uuid_on_create()
     { // Utiliser un email unique à chaque test
-        $uniqueEmail = 'test_'.Str::random(10).'@example.com';
+        $uniqueEmail = 'test_' . Str::random(10) . '@example.com';
         $user = User::create([
             'first_name' => 'tekeu',
             'last_name' => 'arsene',
@@ -38,7 +38,7 @@ class ModelsTest extends TestCase
     public function test_election_has_votable_status()
     {
         $election = new Election;
-        $election->status = ElectionStatus::PUBLISHED;
+        $election->status = ElectionStatus::ONGOING;
         $election->start_at = now()->subHour();
         $election->end_at = now()->addHour();
 

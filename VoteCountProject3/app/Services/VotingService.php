@@ -18,7 +18,6 @@ use App\Models\VoterSession;
 use App\Repositories\Contracts\VoteRepositoryInterface;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class VotingService
@@ -84,23 +83,13 @@ class VotingService
             // Validate vote items based on vote type
             $this->validateVoteItems($election, $dto->items);
 
-            // Check if payment required
+
             $isPaid = $election->payment_type === 'paid' && $election->vote_price > 0;
             $totalAmount = 0;
             $itemQuantities = [];
 
-            if ($election->payment_type === 'paid' && $election->vote_price > 0) {
-                $isPaid = true;
-                $totalAmount = $election->vote_price;
-            }
             if ($isPaid) {
                 $priceCents = (int) round(((float) $election->vote_price) * 100);
-
-                Log::info('DEBUG vote_price calc', [
-                    'election_vote_price' => $election->vote_price,
-                    'priceCents' => $priceCents,
-                    'raw_items' => $dto->items,
-                ]);
 
                 foreach ($dto->items as $index => $item) {
                     $amount = $item['amount'] ?? null;

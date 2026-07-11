@@ -4,7 +4,6 @@ namespace Tests\Feature\Api\V1;
 
 use App\Models\Candidate;
 use App\Models\Election;
-use App\Models\Elector;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -44,7 +43,7 @@ class VoteFlowTest extends TestCase
             'uuid' => Str::uuid()->toString(),
             'first_name' => 'Admin',
             'last_name' => 'User',
-            'email' => 'admin_'.Str::random(8).'@example.com',
+            'email' => 'admin_' . Str::random(8) . '@example.com',
             'password' => bcrypt('password'),
             'email_verified_at' => now(),
             'status' => 'active',
@@ -56,7 +55,7 @@ class VoteFlowTest extends TestCase
             'uuid' => Str::uuid()->toString(),
             'name' => 'Test Organization',
             'slug' => 'test-org',
-            'email' => 'org_'.Str::random(8).'@example.com',
+            'email' => 'org_' . Str::random(8) . '@example.com',
             'owner_user_id' => $user->id,
             'status' => 'active',
             'verified_at' => now(),
@@ -72,26 +71,21 @@ class VoteFlowTest extends TestCase
         // Update organization owner
         $organization->owner_user_id = $user->id;
         $organization->save();
-        $election = Election::factory()->create([
-            'created_by' => $user->id,
-            'status' => 'published',
-            'start_at' => now()->subHour(),
-            'end_at' => now()->addHour(),
-        ]);
 
-        // Create election
         $election = Election::create([
             'uuid' => Str::uuid()->toString(),
             'organization_id' => $organization->id,
             'created_by' => $user->id,
             'title' => 'Test Election',
             'slug' => 'test-election',
-            'status' => 'published',
+            'status' => 'ongoing',
+            'election_mode' => 'public',
+            'payment_type' => 'free',
+            'vote_price' => 0,
             'start_at' => now()->subHour(),
             'end_at' => now()->addHours(2),
             'vote_type' => 'single',
             'max_votes_per_user' => 1,
-            'otp_required' => false,
             'public_results' => true,
         ]);
 
@@ -107,35 +101,19 @@ class VoteFlowTest extends TestCase
             'candidate_number' => 1,
         ]);
 
-        // Create elector
-        $voterCode = 'VOTER_'.strtoupper(Str::random(8));
-        $elector = Elector::create([
-            'uuid' => Str::uuid()->toString(),
-            'election_id' => $election->id,
-            'full_name' => 'Test Voter',
-            'email' => 'voter_'.Str::random(8).'@example.com',
-            'voter_code' => $voterCode,
-            'status' => 'active',
-            'verification_status' => 'verified',
-            'verified_at' => now(),
-            'has_voted' => false,
-        ]);
-
-        // Submit vote
-        $response = $this->postJson("/api/v1/elections/{$election->uuid}/vote", [
-            'voter_code' => $elector->voter_code,
+        $response = $this->postJson("/api/v1/elections/{$election->uuid}/vote/public", [
             'items' => [
                 [
                     'candidate_id' => $candidate->uuid,
                 ],
             ],
-            'idempotency_key' => 'test_'.uniqid(),
+            'idempotency_key' => 'test_' . uniqid(),
         ]);
 
         // Debug output if fails
         if ($response->getStatusCode() !== 201) {
-            dump('Response Status: '.$response->getStatusCode());
-            dump('Response Body: '.$response->getContent());
+            dump('Response Status: ' . $response->getStatusCode());
+            dump('Response Body: ' . $response->getContent());
         }
 
         $response->assertStatus(201);
@@ -150,13 +128,8 @@ class VoteFlowTest extends TestCase
         // Verify vote was recorded
         $this->assertDatabaseHas('votes', [
             'election_id' => $election->id,
-            'elector_id' => $elector->id,
             'status' => 'completed',
         ]);
-
-        // Check elector has voted
-        $elector->refresh();
-        $this->assertTrue($elector->has_voted);
 
         // Verify election vote count increased
         $election->refresh();

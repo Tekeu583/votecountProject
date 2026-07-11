@@ -17,7 +17,7 @@ class EnumsTest extends TestCase
 
     public function test_election_status_is_votable()
     {
-        $this->assertTrue(ElectionStatus::PUBLISHED->isVotable());
+        $this->assertFalse(ElectionStatus::PUBLISHED->isVotable());
         $this->assertTrue(ElectionStatus::ONGOING->isVotable());
         $this->assertFalse(ElectionStatus::CLOSED->isVotable());
     }

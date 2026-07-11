@@ -88,7 +88,7 @@ return [
                 'enable_statistics' => true,
                 'allowed_origins' => array_filter(array_map('trim', explode(',', env(
                     'REVERB_ALLOWED_ORIGINS',
-                    'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:8000,http://127.0.0.1:8000'
+                    'localhost,127.0.0.1'
                 )))),
                 'ping_interval' => env('REVERB_APP_PING_INTERVAL', 60),
                 'activity_timeout' => env('REVERB_APP_ACTIVITY_TIMEOUT', 30),

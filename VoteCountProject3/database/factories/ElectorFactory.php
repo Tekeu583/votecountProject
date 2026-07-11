@@ -19,7 +19,6 @@ class ElectorFactory extends Factory
             'full_name' => $this->faker->name(),
             'email' => $this->faker->unique()->safeEmail(),
             'phone' => $this->faker->unique()->phoneNumber(),
-            'voter_code' => strtoupper(Str::random(12)),
             'status' => 'active',
             'verification_status' => 'verified',
             'verified_at' => now(),

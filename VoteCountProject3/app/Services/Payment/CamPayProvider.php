@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * CamPayProvider — intégration CamPay (agrégateur MTN + Orange Money Cameroun).
  *
+ * API CamPay : https://www.campay.net/docs
  * Docs de référence (fournies par l'utilisateur, doc Postman CamPay) :
  *  - POST {base}/collect/        → initie un paiement (pop-up USSD sur le tel)
  *  - GET  {base}/transaction/{ref}/ → statut : SUCCESSFUL | PENDING | FAILED
@@ -38,13 +39,16 @@ class CamPayProvider implements PaymentProviderInterface
     public function initialize(PaymentProviderConfig $config): void
     {
         $this->config = $config;
+
         if (empty($config->apiKey)) {
             throw new \RuntimeException('CamPay : access_token manquant. Vérifiez CAMPAY_ACCESS_TOKEN dans votre .env.');
         }
 
+        // base_url vient du .env (CAMPAY_BASE_URL) via config/services.php.
         // Demo : https://demo.campay.net/api — Prod : https://www.campay.net/api
         $this->baseUrl = rtrim(config('services.campay.base_url', 'https://demo.campay.net/api'), '/');
 
+        // Le token permanent est transporté dans apiKey (voir config/payment.php).
         $this->accessToken = $config->apiKey;
     }
 
@@ -58,18 +62,18 @@ class CamPayProvider implements PaymentProviderInterface
     public function initiatePayment(PaymentTransaction $transaction, string $phoneNumber): array
     {
         $amountToSend = (string) (int) round((float) $transaction->amount);
-        Log::info('DEBUG CamPay amount envoyé', [
-            'transaction_amount_raw' => $transaction->amount,
-            'amount_envoye_a_campay' => $amountToSend,
-        ]);
 
         $response = Http::withHeaders([
             'Authorization' => 'Token ' . $this->accessToken,
             'Content-Type'  => 'application/json',
         ])->post($this->baseUrl . '/collect/', [
+            // CamPay attend un montant SANS décimales (ex: "100", pas "100.00").
             'amount'             => $amountToSend,
+            // Numéro au format 237XXXXXXXXX (indicatif pays, sans "+").
             'from'               => $this->normalizePhone($phoneNumber),
             'description'        => 'Vote - ' . ($transaction->election?->title ?? 'Election'),
+            // external_reference = notre référence interne → permet de retrouver
+            // la transaction lors du webhook / de la vérification.
             'external_reference' => $transaction->transaction_reference,
         ]);
 
@@ -123,12 +127,16 @@ class CamPayProvider implements PaymentProviderInterface
         }
 
         try {
+            // Décode et vérifie la signature du JWT avec la webhook key.
+            // Lève une exception si la signature est invalide/expirée.
             $decoded = (array) JWT::decode(
                 $signature,
                 new Key($this->config->webhookSecret, 'HS256')
             );
 
-            // On ne garde que le champ `reference` du payload.
+            // Sécurité supplémentaire : le JWT doit correspondre à la
+            // transaction annoncée dans le payload (évite qu'un JWT valide mais
+            // d'une autre transaction soit rejoué).
             $payloadRef = $payload['reference'] ?? null;
             $tokenRef   = $decoded['reference'] ?? null;
 
@@ -158,7 +166,7 @@ class CamPayProvider implements PaymentProviderInterface
         return match (strtoupper($campayStatus)) {
             'SUCCESSFUL' => 'completed',
             'PENDING'    => 'pending',
-            default      => 'failed',
+            default      => 'failed', // FAILED et tout statut inattendu
         };
     }
 
@@ -168,14 +176,20 @@ class CamPayProvider implements PaymentProviderInterface
      */
     protected function normalizePhone(string $phone): string
     {
+        // Retire tout sauf les chiffres.
         $digits = preg_replace('/\D+/', '', $phone);
+
+        // Retire un éventuel "00" international en tête.
         if (str_starts_with($digits, '00')) {
             $digits = substr($digits, 2);
         }
 
+        // Si déjà préfixé 237, on garde tel quel.
         if (str_starts_with($digits, '237')) {
             return $digits;
         }
+
+        // Sinon on préfixe (numéro local à 9 chiffres).
         return '237' . $digits;
     }
 }
