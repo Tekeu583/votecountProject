@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
     Users, Award, TrendingUp, Search, RefreshCw, Eye, ChevronLeft, ChevronRight,
 } from 'lucide-react';
@@ -6,80 +6,100 @@ import toast from 'react-hot-toast';
 import TextInput from '@components/ui/TextInput';
 import StatCard from '@components/dashboard/StatCard';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { juryApi } from '@services/api';
+import { FadeLoader } from 'react-spinners';
+
+const MAX_ELECTIONS_FETCHED = 20;
+
+// L'API ne connaît que le statut réel de l'élection (draft/pending/published/
+// ongoing/paused/closed/completed/cancelled/archived) — on le ramène aux 3
+// états utiles pour un juré : il ne peut noter que pendant "ongoing".
+const statusLabel = (status) => {
+    if (status === 'ongoing') return 'En cours';
+    if (['closed', 'completed', 'archived', 'cancelled'].includes(status)) return 'Terminé';
+    return 'En attente';
+};
 
 const JuryDashboard = () => {
     const [searchParams, setSearchParams] = useSearchParams();
 
     const search = searchParams.get('search') || '';
-    const election = searchParams.get('election') || '';
+    const electionFilter = searchParams.get('election') || '';
     const status = searchParams.get('status') || '';
     const date = searchParams.get('date') || '';
     const currentPage = Number(searchParams.get('page')) || 1;
 
     const itemsPerPage = 6;
-
     const navigate = useNavigate();
-    const elections = useMemo(() => [
-        { id: 1, name: 'Élection Conseil Syndical', typeScrutin: 'Majoritaire', dateFermeture: '2026-05-30 18:30', status: 'En attente' },
-        { id: 2, name: "Prix de l'Innovation 2026", typeScrutin: 'Classement', dateFermeture: '2026-05-15 18:30', status: 'En cours' },
-        { id: 3, name: 'Direction Départementale', typeScrutin: 'Majoritaire', dateFermeture: '2026-04-30 18:30', status: 'En cours' },
-        { id: 4, name: 'Comité Technique', typeScrutin: 'Proportionnel', dateFermeture: '2026-04-10 18:30', status: 'Terminé' },
-        { id: 5, name: 'Élection Étudiante 2026', typeScrutin: 'Classement', dateFermeture: '2026-05-20 18:30', status: 'En cours' },
-    ], []);
 
-    const candidates = useMemo(() => [
-        { id: 1, name: 'Fokam', avatar: 'https://i.pravatar.cc/150?u=fokam', electionId: 1, evaluated: false },
-        { id: 2, name: 'Audrey', avatar: 'https://i.pravatar.cc/150?u=audrey', electionId: 1, evaluated: false },
+    const [elections, setElections] = useState([]);
+    const [candidates, setCandidates] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-        { id: 3, name: 'Tekeu Arsene', avatar: 'https://i.pravatar.cc/150?u=tekeu', electionId: 2, evaluated: false },
-        { id: 4, name: 'Gertrude Valérie', avatar: 'https://i.pravatar.cc/150?u=gertrude', electionId: 2, evaluated: false },
-        { id: 5, name: 'Muriel Rose', avatar: 'https://i.pravatar.cc/150?u=muriel', electionId: 2, evaluated: false },
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                const electionsRes = await juryApi.getMyElections();
+                const myElections = electionsRes.data?.data ?? [];
+                setElections(myElections);
 
-        { id: 6, name: 'Latalle Pradier', avatar: 'https://i.pravatar.cc/150?u=pradier', electionId: 3, evaluated: false },
-        { id: 7, name: 'Valérie NG', avatar: 'https://i.pravatar.cc/150?u=valerie', electionId: 3, evaluated: false },
+                const targets = myElections.slice(0, MAX_ELECTIONS_FETCHED);
+                const results = await Promise.all(
+                    targets.map((election) =>
+                        juryApi.getCandidates(election.uuid)
+                            .then((res) => (res.data?.data ?? []).map((c) => ({ ...c, election })))
+                            .catch(() => [])
+                    )
+                );
+                setCandidates(results.flat());
+            } catch {
+                toast.error('Impossible de charger votre tableau de bord.');
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, []);
 
-        { id: 8, name: 'Benedict', avatar: 'https://i.pravatar.cc/150?u=benedict', electionId: 4, evaluated: true },
-        { id: 9, name: 'Fortune', avatar: 'https://i.pravatar.cc/150?u=fortune', electionId: 4, evaluated: true },
-
-        { id: 10, name: 'Kevin Ndzi', avatar: 'https://i.pravatar.cc/150?u=kevin', electionId: 5, evaluated: false },
-        { id: 11, name: 'Sonia Mballa', avatar: 'https://i.pravatar.cc/150?u=sonia', electionId: 5, evaluated: false },
-        { id: 12, name: 'Junior Ekani', avatar: 'https://i.pravatar.cc/150?u=junior', electionId: 5, evaluated: false },
-    ], []);
     const statuses = ['Toutes', 'En attente', 'En cours', 'Terminé'];
 
     const enrichedCandidates = useMemo(() => {
         const now = new Date();
         return candidates.map(c => {
-            const election = elections.find(e => e.id === c.electionId);
-            const closingDate = new Date(election?.dateFermeture);
+            const election = c.election;
+            const closingDate = election?.end_at ? new Date(election.end_at) : null;
+            const label = statusLabel(election?.status);
 
-            const isClosed = closingDate < now;
+            const isClosed = label === 'Terminé';
             const isUrgent =
-                !c.evaluated &&
+                !c.scored &&
                 !isClosed &&
-                (closingDate - now) / (1000 * 60 * 60 * 24) <= 2; // <= 2 jours
+                closingDate &&
+                (closingDate - now) / (1000 * 60 * 60 * 24) <= 2;
 
             return {
                 ...c,
-                electionName: election?.name,
-                status: election?.status,
-                dateFermeture: election?.dateFermeture,
+                electionUuid: election?.uuid,
+                electionName: election?.title,
+                status: label,
+                dateFermeture: election?.end_at,
                 isClosed,
                 isUrgent,
             };
         });
-    }, [candidates, elections]);
+    }, [candidates]);
 
     const filteredCandidates = useMemo(() => {
         return enrichedCandidates.filter(c => {
             return (
-                (!search || c.name.toLowerCase().includes(search.toLowerCase())) &&
-                (!election || String(c.electionId) === election) &&
-                (!status || c.status === status) &&
-                (!date || c.dateFermeture === date)
+                (!search || c.full_name?.toLowerCase().includes(search.toLowerCase())) &&
+                (!electionFilter || c.electionUuid === electionFilter) &&
+                (!status || status === 'Toutes' || c.status === status) &&
+                (!date || (c.dateFermeture && c.dateFermeture.slice(0, 10) === date))
             );
         });
-    }, [search, election, status, date, enrichedCandidates]);
+    }, [search, electionFilter, status, date, enrichedCandidates]);
 
     const totalPages = Math.ceil(filteredCandidates.length / itemsPerPage);
     const paginatedCandidates = filteredCandidates.slice(
@@ -89,7 +109,6 @@ const JuryDashboard = () => {
 
     const goToPage = (newPage) => {
         if (newPage < 1 || newPage > totalPages) return;
-
         const params = new URLSearchParams(searchParams);
         if (newPage > 1) {
             params.set('page', newPage);
@@ -100,13 +119,11 @@ const JuryDashboard = () => {
     };
     const updateParams = (newParams) => {
         const params = new URLSearchParams(searchParams);
-
         Object.entries(newParams).forEach(([key, value]) => {
             if (value) params.set(key, value);
             else params.delete(key);
         });
         params.set('page', 1);
-
         setSearchParams(params);
     };
     const resetFilters = () => {
@@ -115,21 +132,16 @@ const JuryDashboard = () => {
     };
 
     const candidatesToEvaluate = useMemo(() => {
-        return filteredCandidates.filter(c =>
-            !c.evaluated &&
-            !c.isClosed &&
-            c.status === 'En cours'
-        );
+        return filteredCandidates.filter(c => !c.scored && c.status === 'En cours');
     }, [filteredCandidates]);
 
     const evaluatedCandidates = useMemo(() => {
-        return filteredCandidates.filter(c => c.evaluated);
+        return filteredCandidates.filter(c => c.scored);
     }, [filteredCandidates]);
 
     const progress = useMemo(() => {
         const total = filteredCandidates.length;
         const done = evaluatedCandidates.length;
-
         return total ? Math.round((done / total) * 100) : 0;
     }, [filteredCandidates, evaluatedCandidates]);
 
@@ -138,7 +150,7 @@ const JuryDashboard = () => {
     }, [candidatesToEvaluate]);
 
     const nearestDeadline = useMemo(() => {
-        const dates = candidatesToEvaluate.map(c => new Date(c.dateFermeture));
+        const dates = candidatesToEvaluate.map(c => new Date(c.dateFermeture)).filter(d => !Number.isNaN(d.getTime()));
         return dates.length ? new Date(Math.min(...dates)) : null;
     }, [candidatesToEvaluate]);
 
@@ -153,45 +165,30 @@ const JuryDashboard = () => {
         success: 'btn-secondary text-[var(--color-success)]! hover:border-[var(--color-success)]!',
     };
     const getActionConfig = (candidate) => {
-        const { status, evaluated } = candidate;
+        const { status, scored } = candidate;
 
-        switch (status) {
-            case 'Terminé':
-                return {
-                    label: 'Clôturé',
-                    disabled: true,
-                    variant: 'success',
-                };
-
-            case 'En attente':
-                return {
-                    label: 'En attente',
-                    disabled: true,
-                    variant: 'warning',
-                };
-
-            case 'En cours':
-                if (evaluated) {
-                    return {
-                        label: 'Déjà évalué',
-                        disabled: true,
-                        variant: 'default',
-                    };
-                }
-
-                return {
-                    label: 'Évaluer',
-                    disabled: false,
-                    variant: 'primary',
-                };
-
-            default:
-                return null;
+        if (status === 'Terminé') {
+            return { label: 'Clôturé', disabled: true, variant: 'success' };
         }
+        if (status === 'En attente') {
+            return { label: 'En attente', disabled: true, variant: 'warning' };
+        }
+        if (scored) {
+            return { label: 'Déjà évalué', disabled: false, variant: 'default' };
+        }
+        return { label: 'Évaluer', disabled: false, variant: 'primary' };
     };
-    const handleEvaluate = (candidate) => {
-        navigate(`/jury/candidats/${candidate.electionId}/evaluations/${candidate.id}`, { state: { candidate } });
-    };
+    const handleEvaluate = useCallback((candidate) => {
+        navigate(`/jury/candidats/${candidate.electionUuid}/evaluations/${candidate.uuid}`, { state: { candidate } });
+    }, [navigate]);
+
+    if (loading) {
+        return (
+            <div className="h-[calc(100vh-68px)] flex items-center justify-center">
+                <FadeLoader color="#1e40af" cssOverride={{ display: 'block', margin: '0 auto' }} />
+            </div>
+        );
+    }
 
     return (
         <div className="flex-1 bg-[var(--color-background-white)] p-4 ">
@@ -204,7 +201,7 @@ const JuryDashboard = () => {
 
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1  sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-8 lg:mb-10">
-                    <StatCard icon={Users} title="SCRUTINS ASSIGNÉS" value={elections.length} trend={`↑2 • Il y a 2h`} />
+                    <StatCard icon={Users} title="SCRUTINS ASSIGNÉS" value={elections.length} />
                     <StatCard icon={Award} title="CANDIDATS À ÉVALUER" value={candidatesToEvaluate.length} trend={`${urgentCandidates.length} urgents • ${candidatesToEvaluate.length} à traiter`} borderColor={'[var(--color-success)]'} delay={150} />
                     <StatCard icon={Users} title="URGENT" value={urgentCandidates.length} trend={trendText} borderColor={'[var(--color-danger)]'} className={'!text-[var(--color-danger)]'} delay={250} />
                     <StatCard icon={TrendingUp} title="PROGRESSION GLOBALE" value={`${progress}%`} trend={`${evaluatedCandidates.length} évalués`} borderColor={'[var(--color-success)]'} delay={350} />
@@ -222,10 +219,7 @@ const JuryDashboard = () => {
                                     iconLeft={Search}
                                     placeholder="Rechercher un candidat..."
                                     value={search}
-                                    onChange={(e) => {
-                                        updateParams({ search: e.target.value });
-
-                                    }}
+                                    onChange={(e) => updateParams({ search: e.target.value })}
                                     className="w-full lg:w-80"
                                 />
                             </div>
@@ -235,15 +229,12 @@ const JuryDashboard = () => {
                                 </label>
                                 <select
                                     id="electionFilter"
-                                    value={election}
-                                    onChange={(e) => {
-                                        updateParams({ election: e.target.value });
-
-                                    }}
+                                    value={electionFilter}
+                                    onChange={(e) => updateParams({ election: e.target.value })}
                                     className="border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 w-full lg:w-auto"
                                 >
                                     <option value="">Toutes les elections</option>
-                                    {elections.map(el => <option key={el.id} value={el.id}>{el.name}</option>)}
+                                    {elections.map(el => <option key={el.uuid} value={el.uuid}>{el.title}</option>)}
                                 </select>
                             </div>
 
@@ -254,10 +245,7 @@ const JuryDashboard = () => {
                                 <select
                                     id="statusFilter"
                                     value={status}
-                                    onChange={(e) => {
-                                        updateParams({ status: e.target.value });
-
-                                    }}
+                                    onChange={(e) => updateParams({ status: e.target.value })}
                                     className="border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 w-full lg:w-auto"
                                 >
                                     {statuses.map(s => <option key={s} value={s}>{s}</option>)}
@@ -269,10 +257,7 @@ const JuryDashboard = () => {
                                     type="date"
                                     label="Date de fermeture"
                                     value={date}
-                                    onChange={(e) => {
-                                        updateParams({ date: e.target.value });
-
-                                    }}
+                                    onChange={(e) => updateParams({ date: e.target.value })}
                                     className="w-full lg:w-44"
                                 />
                             </div>
@@ -302,20 +287,20 @@ const JuryDashboard = () => {
                                 {paginatedCandidates.map((candidate) => {
                                     const action = getActionConfig(candidate);
                                     return (
-                                        <tr key={candidate.id} className={` transition ${candidate.isUrgent
+                                        <tr key={`${candidate.electionUuid}-${candidate.uuid}`} className={` transition ${candidate.isUrgent
                                             ? 'bg-red-100 hover:bg-red-200  border-l-4 border-l-red-600 rounded-l-[var(--radius-md)]'
                                             : 'hover:bg-[var(--color-gray-light)]  duration-300 ease-in-out'
                                             }`}>
                                             <td className="px-3 py-2">
                                                 <div className="flex items-center gap-3">
                                                     <img
-                                                        src={candidate.avatar}
-                                                        alt={candidate.name}
+                                                        src={candidate.photo || `https://i.pravatar.cc/150?u=${candidate.uuid}`}
+                                                        alt={candidate.full_name}
                                                         className="w-10 h-10 rounded-full object-cover border border-gray-200"
                                                     />
                                                     <div className="flex items-center gap-2">
                                                         <span className="font-medium text-gray-900">
-                                                            {candidate.name}
+                                                            {candidate.full_name}
                                                         </span>
 
                                                         {candidate.isUrgent && (
@@ -328,7 +313,7 @@ const JuryDashboard = () => {
                                             </td>
                                             <td className="px-3 py-2 text-gray-700">{candidate.electionName}</td>
                                             <td className="px-3 py-2 text-gray-600 font-mono text-sm">
-                                                {candidate.dateFermeture}
+                                                {candidate.dateFermeture ? new Date(candidate.dateFermeture).toLocaleString() : '—'}
                                             </td>
                                             <td className="px-3 py-2">
                                                 <span className={`inline-flex px-4 py-1 text-xs font-medium rounded-full whitespace-nowrap ${candidate.status === 'En attente' ? 'bg-amber-100 text-amber-700' :
@@ -375,7 +360,7 @@ const JuryDashboard = () => {
                     {/* Pagination */}
                     <div className="flex flex-col lg:flex-row justify-between items-center px-3 py-2 text-sm gap-3">
                         <span className="text-[var(--color-gray)]">
-                            Affichage de {(currentPage - 1) * itemsPerPage + 1} à{" "}
+                            Affichage de {filteredCandidates.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} à{" "}
                             {Math.min(currentPage * itemsPerPage, filteredCandidates.length)} sur{" "}
                             {filteredCandidates.length}
                         </span>

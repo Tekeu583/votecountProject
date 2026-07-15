@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Results;
 use App\Http\Controllers\Api\V1\BaseApiController;
 use App\Jobs\CalculateElectionResults;
 use App\Jobs\ExportResultsJob;
+use App\Models\Candidate;
 use App\Models\Election;
 use App\Services\ResultService;
 use Illuminate\Http\JsonResponse;
@@ -83,15 +84,45 @@ class ResultController extends BaseApiController
             return $this->error('Results not calculated yet', null, 404);
         }
 
+        $snapshot = $latestSnapshot->snapshot;
+        $results = $snapshot['results'] ?? $snapshot;
+
         return $this->success([
             'election_uuid' => $election->uuid,
             'title' => $election->title,
             'status' => $election->status->value,
             'total_votes' => $election->total_votes,
             'participation_rate' => $election->getParticipationRate(),
-            'results' => $latestSnapshot->snapshot,
+            'results' => $this->withCandidateUuids($results),
+            'irv' => $snapshot['irv'] ?? null,
             'calculated_at' => $latestSnapshot->created_at->toIso8601String(),
         ]);
+    }
+
+    /**
+     * Les snapshots calculés avant l'ajout de candidate_uuid au job de
+     * calcul n'ont que candidate_id — on le résout à la lecture plutôt que
+     * de dépendre d'un recalcul manuel de chaque élection historique.
+     */
+    private function withCandidateUuids(array $results): array
+    {
+        $missingIds = collect($results)
+            ->filter(fn ($r) => empty($r['candidate_uuid'] ?? null) && ! empty($r['candidate_id'] ?? null))
+            ->pluck('candidate_id');
+
+        if ($missingIds->isEmpty()) {
+            return $results;
+        }
+
+        $uuidsById = Candidate::whereIn('id', $missingIds)->pluck('uuid', 'id');
+
+        return collect($results)->map(function ($r) use ($uuidsById) {
+            if (empty($r['candidate_uuid'] ?? null) && ! empty($r['candidate_id'] ?? null)) {
+                $r['candidate_uuid'] = $uuidsById[$r['candidate_id']] ?? null;
+            }
+
+            return $r;
+        })->all();
     }
 
     /**

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     Search,
     Trash2,
@@ -12,124 +12,127 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import TextInput from '@components/ui/TextInput';
+import { FadeLoader } from 'react-spinners';
+import { useDebounce } from '@hooks/useDebounce';
+import { useOrg } from '@hooks/useOrg';
+import { trashApi } from '@services/api';
+
+const ENTITY_ICONS = {
+    'App\\Models\\Election': { icon: FileText, color: 'bg-blue-100 text-blue-600' },
+    'App\\Models\\Candidate': { icon: Users, color: 'bg-purple-100 text-purple-600' },
+};
+
+const remainingDays = (expiresAt) => {
+    const diff = new Date(expiresAt).getTime() - Date.now();
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+};
+
+const getRemainingColor = (days) => {
+    if (days <= 5) return 'text-red-600';
+    if (days <= 15) return 'text-orange-600';
+    return 'text-emerald-600';
+};
 
 const Corbeille = () => {
+    const { org } = useOrg();
     const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearch = useDebounce(searchTerm, 400);
     const [selectedItems, setSelectedItems] = useState([]);
+    const [currentPage, setCurrentPage] = useState(1);
 
-    // Données d'exemple (à remplacer par les données venant de l'API plus tard)
-    const deletedItems = useMemo(() => [
-        {
-            id: 1,
-            name: 'Élections Municipales 2026 - Test',
-            type: 'Scrutin',
-            deletedAt: '12 Mai 2026',
-            remainingDays: 3,
-            icon: FileText,
-            color: 'bg-blue-100 text-blue-600',
-            idRef: 'SCR-8921-23',
-        },
-        {
-            id: 2,
-            name: 'Arsene Tekeu',
-            type: 'Candidat',
-            deletedAt: '15 Mai 2026',
-            remainingDays: 12,
-            icon: Users,
-            color: 'bg-purple-100 text-purple-600',
-            idRef: 'CAN-4412-09',
-        },
-        {
-            id: 3,
-            name: 'Rapport Annuel Audit_V2.pdf',
-            type: 'Document',
-            deletedAt: '20 Mai 2026',
-            remainingDays: 23,
-            icon: FileText,
-            color: 'bg-amber-100 text-amber-600',
-            idRef: 'DOC-9002-XX',
-        },
-        {
-            id: 4,
-            name: 'Liste Électeurs - Secteur Ouest',
-            type: 'Liste',
-            deletedAt: '25 Mai 2026',
-            remainingDays: 28,
-            icon: Users,
-            color: 'bg-emerald-100 text-emerald-600',
-            idRef: 'ELEC-1122-88',
-        },
-    ], []);
+    const [loading, setLoading] = useState(true);
+    const [items, setItems] = useState([]);
+    const [meta, setMeta] = useState({ total: 0, last_page: 1 });
 
-    // Filtrage
-    const filteredItems = useMemo(() => {
-        if (!searchTerm.trim()) return deletedItems;
-        const term = searchTerm.toLowerCase();
-        return deletedItems.filter(item =>
-            item.name.toLowerCase().includes(term) ||
-            item.type.toLowerCase().includes(term) ||
-            item.idRef.toLowerCase().includes(term)
-        );
-    }, [searchTerm, deletedItems]);
-    const toggleSelect = (id) => {
+    const loadTrash = useCallback(async () => {
+        if (!org?.uuid) return;
+        setLoading(true);
+        try {
+            const res = await trashApi.getAll({
+                organization_uuid: org.uuid,
+                search: debouncedSearch || undefined,
+                page: currentPage,
+                per_page: 10,
+            });
+            setItems(res.data?.data ?? []);
+            setMeta(res.data?.meta ?? { total: 0, last_page: 1 });
+        } catch {
+            toast.error('Erreur de chargement de la corbeille.');
+        } finally {
+            setLoading(false);
+        }
+    }, [org?.uuid, debouncedSearch, currentPage]);
+
+    useEffect(() => { loadTrash(); }, [loadTrash]);
+
+    const toggleSelect = (uuid) => {
         setSelectedItems(prev =>
-            prev.includes(id)
-                ? prev.filter(item => item !== id)
-                : [...prev, id]
+            prev.includes(uuid) ? prev.filter(item => item !== uuid) : [...prev, uuid]
         );
     };
 
     const toggleSelectAll = () => {
-        if (selectedItems.length === filteredItems.length) {
+        setSelectedItems(selectedItems.length === items.length ? [] : items.map(item => item.uuid));
+    };
+
+    const handleRestore = async (uuid) => {
+        try {
+            await trashApi.restore(uuid);
+            toast.success('Élément restauré avec succès', { duration: 3000 });
+            setSelectedItems((prev) => prev.filter((id) => id !== uuid));
+            loadTrash();
+        } catch (error) {
+            toast.error(error.response?.data?.message ?? 'Erreur lors de la restauration.');
+        }
+    };
+
+    const handleForceDelete = async (uuid) => {
+        if (!window.confirm('Supprimer définitivement cet élément ? Cette action est irréversible.')) return;
+        try {
+            await trashApi.forceDelete(uuid);
+            toast.success('Élément supprimé définitivement.');
+            setSelectedItems((prev) => prev.filter((id) => id !== uuid));
+            loadTrash();
+        } catch (error) {
+            toast.error(error.response?.data?.message ?? 'Erreur lors de la suppression.');
+        }
+    };
+
+    const handleRestoreSelected = async () => {
+        if (selectedItems.length === 0) {
+            toast.error("Aucun élément sélectionné");
+            return;
+        }
+        try {
+            await Promise.all(selectedItems.map((uuid) => trashApi.restore(uuid)));
+            toast.success(`${selectedItems.length} élément(s) restauré(s)`);
             setSelectedItems([]);
-        } else {
-            setSelectedItems(filteredItems.map(item => item.id));
+            loadTrash();
+        } catch {
+            toast.error('Erreur lors de la restauration groupée.');
         }
     };
 
-    const handleRestoreSelected = () => {
+    const handleDeleteSelected = async () => {
         if (selectedItems.length === 0) {
             toast.error("Aucun élément sélectionné");
             return;
         }
-
-        toast.success(`${selectedItems.length} éléments restaurés`);
-
-        // 👉 appel API ici
-        // await api.restoreMany(selectedItems)
-
-        setSelectedItems([]);
-    };
-    const handleRestore = (id) => {
-        toast.success(`Élément restauré avec succès ${id}`, { duration: 3000 });
-        // Ici tu feras l'appel API pour restaurer
-    };
-
-    const handleRestoreAll = () => {
-        if (deletedItems.length === 0) {
-            toast.error("La corbeille est vide");
-            return;
+        if (!window.confirm(`Supprimer définitivement ${selectedItems.length} élément(s) ? Cette action est irréversible.`)) return;
+        try {
+            await Promise.all(selectedItems.map((uuid) => trashApi.forceDelete(uuid)));
+            toast.success(`${selectedItems.length} élément(s) supprimé(s) définitivement`);
+            setSelectedItems([]);
+            loadTrash();
+        } catch {
+            toast.error('Erreur lors de la suppression groupée.');
         }
-        toast.success(`${deletedItems.length} éléments restaurés avec succès`, { duration: 3000 });
-        // Appel API pour tout restaurer
     };
-    const handleDeleteSelected = () => {
-        if (selectedItems.length === 0) {
-            toast.error("Aucun élément sélectionné");
-            return;
-        }
 
-        toast.success(`${selectedItems.length} éléments supprimés définitivement`);
-
-        // 👉 appel API ici
-        // await api.deleteMany(selectedItems)
-
+    const resetFilters = () => {
+        setSearchTerm('');
         setSelectedItems([]);
-    };
-    const getRemainingColor = (days) => {
-        if (days <= 5) return 'text-red-600';
-        if (days <= 15) return 'text-orange-600';
-        return 'text-emerald-600';
+        setCurrentPage(1);
     };
 
     return (
@@ -140,14 +143,6 @@ const Corbeille = () => {
                     <h1 className="text-2xl lg:text-3xl font-semibold text-[var(--color-dark)]">Corbeille</h1>
                     <p className="text-[var(--color-gray)] mt-1">Éléments supprimés récemment</p>
                 </div>
-
-                <button
-                    onClick={handleRestoreAll}
-                    className="btn-primary flex items-center gap-2 px-6 py-3 rounded-xl font-medium"
-                >
-                    <RotateCw size={18} />
-                    Restaurer tout
-                </button>
             </div>
 
             {/* Info Banner */}
@@ -158,7 +153,7 @@ const Corbeille = () => {
                 <div>
                     <p className="font-medium text-blue-900">Rétention automatique</p>
                     <p className="text-sm text-blue-700 mt-1">
-                        Les éléments supprimés sont conservés pendant <strong>30 jours</strong> avant d'être définitivement effacés de nos serveurs sécurisés.
+                        Les éléments supprimés sont conservés pendant <strong>60 jours</strong> avant d'être définitivement effacés de nos serveurs sécurisés.
                     </p>
                 </div>
             </div>
@@ -166,23 +161,20 @@ const Corbeille = () => {
             {/* Search Bar */}
             <div className="bg-white rounded-[var(--radius-md)] shadow-sm p-4 mb-6 flex items-center gap-4">
                 <div className="text-sm text-[var(--color-gray)] whitespace-nowrap">
-                    {filteredItems.length} éléments trouvés
+                    {meta.total} élément{meta.total > 1 ? 's' : ''} trouvé{meta.total > 1 ? 's' : ''}
                 </div>
                 <div className="flex-1 relative">
                     <TextInput
                         iconLeft={Search}
                         placeholder="Rechercher dans la corbeille..."
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                         className="w-full"
                     />
                 </div>
                 <div className="flex items-end">
                     <button
-                        onClick={()=>{
-                            setSearchTerm('');
-                            setSelectedItems('');
-                        }}
+                        onClick={resetFilters}
                         className="flex items-center gap-2 px-5 py-3 btn-secondary  font-medium"
                     >
                         <RefreshCw size={18} />
@@ -218,7 +210,7 @@ const Corbeille = () => {
                 <div className="px-6 py-5 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
                     <h2 className="font-semibold text-lg text-[var(--color-dark)]">Historique des suppressions</h2>
                     <span className="text-xs bg-gray-100 px-3 py-1 rounded-full text-gray-600">
-                        {filteredItems.length} éléments
+                        {meta.total} éléments
                     </span>
                 </div>
 
@@ -234,77 +226,74 @@ const Corbeille = () => {
                                 <th className=" text-left p-4">
                                     <input
                                         type="checkbox"
-                                        checked={
-                                            filteredItems.length > 0 &&
-                                            selectedItems.length === filteredItems.length
-                                        }
+                                        checked={items.length > 0 && selectedItems.length === items.length}
                                         onChange={toggleSelectAll}
                                     />
                                 </th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[var(--color-gray-light)]">
-                            {filteredItems.map((item) => {
-                                const Icon = item.icon;
+                            {loading ? (
+                                <tr><td colSpan={6} className="text-center py-16"><FadeLoader color="#1e40af" cssOverride={{ display: 'inline-block' }} /></td></tr>
+                            ) : items.map((item) => {
+                                const { icon: Icon, color } = ENTITY_ICONS[item.entity_type] ?? { icon: FileText, color: 'bg-gray-100 text-gray-600' };
+                                const days = remainingDays(item.expires_at);
                                 return (
-                                    <tr key={item.id} className="hover:bg-[var(--color-gray-light)] transition-colors">
+                                    <tr key={item.uuid} className="hover:bg-[var(--color-gray-light)] transition-colors">
                                         <td className="px-3 py-2">
                                             <div className="flex items-center gap-3">
-                                                <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${item.color}`}>
+                                                <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${color}`}>
                                                     <Icon size={20} />
                                                 </div>
-                                                <div>
-                                                    <p className="font-medium text-[var(--color-dark)]">{item.name}</p>
-                                                    <p className="text-xs text-gray-500">ID: {item.idRef}</p>
-                                                </div>
+                                                <p className="font-medium text-[var(--color-dark)]">{item.name}</p>
                                             </div>
                                         </td>
 
                                         <td className="px-3 py-2">
                                             <span className="inline-flex px-3 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
-                                                {item.type}
+                                                {item.entity_label}
                                             </span>
                                         </td>
 
-                                        <td className="px-3 py-2 text-sm text-gray-600">{item.deletedAt}</td>
+                                        <td className="px-3 py-2 text-sm text-gray-600">{new Date(item.deleted_at).toLocaleDateString('fr-FR')}</td>
 
                                         <td className="px-3 py-2">
-                                            <div className="flex items-center gap-2">
-                                                <div className={`text-xs font-medium ${getRemainingColor(item.remainingDays)}`}>
-                                                    {item.remainingDays} jours restants
-                                                </div>
-                                                <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden max-w-[120px]">
-                                                    <div
-                                                        className="h-full bg-emerald-500 rounded-full transition-all"
-                                                        style={{ width: `${Math.max(10, item.remainingDays)}%` }}
-                                                    />
-                                                </div>
+                                            <div className={`text-xs font-medium ${getRemainingColor(days)}`}>
+                                                {days} jour{days > 1 ? 's' : ''} restant{days > 1 ? 's' : ''}
                                             </div>
                                         </td>
 
                                         <td className="px-3 py-2 text-right pr-8">
-                                            <button
-                                                onClick={() => handleRestore(item.id)}
-                                                className="flex items-center gap-1.5 text-blue-600 hover:text-blue-700 font-medium text-sm transition-colors"
-                                            >
-                                                <RotateCw size={16} />
-                                                Restaurer
-                                            </button>
+                                            <div className="flex items-center justify-end gap-3">
+                                                <button
+                                                    onClick={() => handleRestore(item.uuid)}
+                                                    className="flex items-center gap-1.5 text-blue-600 hover:text-blue-700 font-medium text-sm transition-colors"
+                                                >
+                                                    <RotateCw size={16} />
+                                                    Restaurer
+                                                </button>
+                                                <button
+                                                    onClick={() => handleForceDelete(item.uuid)}
+                                                    className="flex items-center gap-1.5 text-red-600 hover:text-red-700 font-medium text-sm transition-colors"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
                                         </td>
                                         <td className="px-3 py-2">
                                             <input
                                                 type="checkbox"
-                                                checked={selectedItems.includes(item.id)}
-                                                onChange={() => toggleSelect(item.id)}
+                                                checked={selectedItems.includes(item.uuid)}
+                                                onChange={() => toggleSelect(item.uuid)}
                                             />
                                         </td>
                                     </tr>
                                 );
                             })}
 
-                            {filteredItems.length === 0 && (
+                            {!loading && items.length === 0 && (
                                 <tr>
-                                    <td colSpan="5" className="p-16 text-center">
+                                    <td colSpan="6" className="p-16 text-center">
                                         <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                                             <Trash2 size={32} className="text-gray-400" />
                                         </div>
@@ -318,13 +307,23 @@ const Corbeille = () => {
 
                 {/* Pagination */}
                 <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between text-sm text-[var(--color-gray)]">
-                    <span>Affichage 1-4 de 12 éléments</span>
+                    <span>{meta.total} élément{meta.total > 1 ? 's' : ''}</span>
                     <div className="flex items-center gap-2">
-                        <button className="p-2 hover:bg-gray-100 rounded"><ChevronLeft size={18} /></button>
-                        <button className="px-4 py-1 bg-[var(--color-primary)] text-white rounded">1</button>
-                        <button className="px-4 py-1 border rounded hover:bg-gray-100">2</button>
-                        <button className="px-4 py-1 border rounded hover:bg-gray-100">3</button>
-                        <button className="p-2 hover:bg-gray-100 rounded"><ChevronRight size={18} /></button>
+                        <button
+                            onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                            disabled={currentPage === 1}
+                            className="p-2 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <ChevronLeft size={18} />
+                        </button>
+                        <button className="px-4 py-1 bg-[var(--color-primary)] text-white rounded">{currentPage}</button>
+                        <button
+                            onClick={() => setCurrentPage((p) => Math.min(p + 1, meta.last_page || 1))}
+                            disabled={currentPage >= (meta.last_page || 1)}
+                            className="p-2 hover:bg-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <ChevronRight size={18} />
+                        </button>
                     </div>
                 </div>
             </div>

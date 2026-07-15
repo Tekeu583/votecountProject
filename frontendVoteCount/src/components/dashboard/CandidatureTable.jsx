@@ -1,8 +1,7 @@
-import { Eye, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Eye, ChevronLeft, ChevronRight } from "lucide-react";
 import StatusBadge from "./StatusBadge";
 import { useNavigate } from "react-router-dom";
 import { useState, useMemo } from "react";
-import toast from "react-hot-toast";
 import PropTypes from "prop-types";
 
 export default function CandidatureTable({ data }) {
@@ -44,19 +43,12 @@ export default function CandidatureTable({ data }) {
                                     <StatusBadge status={item.status} />
                                 </td>
                                 <td className="text-right">
-                                    <div className="flex justify-end gap-3">
-                                        <button title="Voir"
-                                            onClick={() => navigate(`/candidatures/${item.id}`)}
-                                            className="flex items-center gap-1 px-2 text-blue-600 hover:text-blue-800"
-                                        >
-                                            <Eye size={16} />
-                                        </button>
-                                        <button
-                                            onClick={() => toast.success(`candidature a ${item.election} annuler avec success !`, { duration: 5000 })}
-                                            title="Annuler la candidature" className="flex items-center px-2 gap-1 text-red-500 hover:text-red-700">
-                                            <X size={16} />
-                                        </button>
-                                    </div>
+                                    <button title="Voir les résultats"
+                                        onClick={() => navigate(`/candidat/results/${item.electionUuid}`)}
+                                        className="inline-flex items-center gap-1 px-2 text-blue-600 hover:text-blue-800"
+                                    >
+                                        <Eye size={16} />
+                                    </button>
                                 </td>
                             </tr>
                         ))}
@@ -95,6 +87,7 @@ CandidatureTable.propTypes={
     data: PropTypes.arrayOf(PropTypes.shape({
         id: PropTypes.string.isRequired,
         election: PropTypes.string.isRequired,
-        status: PropTypes.oneOf(['pending', 'accepted', 'rejected']).isRequired,
+        electionUuid: PropTypes.string.isRequired,
+        status: PropTypes.oneOf(['ACCEPTÉ', 'EN ATTENTE', 'REJETÉ', 'BLOQUÉ']).isRequired,
     })).isRequired,
 }

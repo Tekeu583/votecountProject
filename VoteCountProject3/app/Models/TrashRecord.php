@@ -20,6 +20,7 @@ class TrashRecord extends Model
         'entity_snapshot',
         'deleted_by',
         'owner_user_id',
+        'organization_id',
         'reason',
         'deleted_at',
         'expires_at',
@@ -43,6 +44,11 @@ class TrashRecord extends Model
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_user_id');
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
     }
 
     public function getModel(): ?Model

@@ -260,13 +260,20 @@ export const updatePassword = async (data) => {
 };
 
 /**
- * Met à jour le profil (nom, téléphone).
- * PATCH est le verbe correct pour une mise à jour partielle.
+ * Met à jour le profil (nom, téléphone, photo).
+ * PATCH est le verbe correct pour une mise à jour partielle — mais un
+ * FormData (upload de photo) doit passer par POST + _method=PATCH (PHP ne
+ * parse pas les bodies multipart sur les requêtes PUT/PATCH).
  *
- * @param {{ name?: string, phone?: string }} data
+ * @param {{ first_name?: string, last_name?: string, phone?: string, photo?: File }|FormData} data
  */
-export const updateProfile = (data) =>
-    api.patch(`${V1}/auth/profile`, data);
+export const updateProfile = (data) => {
+    if (data instanceof FormData) {
+        data.append('_method', 'PATCH');
+        return api.post(`${V1}/auth/profile`, data);
+    }
+    return api.patch(`${V1}/auth/profile`, data);
+};
 
 // Vérification email via OTP
 export const verifyEmailOtp = async (data) => {

@@ -30,4 +30,8 @@ interface AuthServiceInterface
     public function generateOtp(User $user, string $channel): string;
 
     public function verifyOtp(User $user, string $code): bool;
+
+    public function updateProfile(User $user, array $data): User;
+
+    public function changePassword(User $user, string $currentPassword, string $newPassword): bool;
 }

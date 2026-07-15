@@ -3,16 +3,20 @@ import { useState, useRef, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
     LogOut, X, Menu, CircleUser,
-    ChevronDown, Check, Building2,
+    ChevronDown, Check, Building2, LayoutGrid,
 } from 'lucide-react';
 import { menuByRole } from './config/menuByRole';
 import Logo from '../Logo';
 import { useAuth } from '@hooks/useAuth';
 import { toast } from 'react-hot-toast';
 import PropTypes from 'prop-types';
-import { ROLES } from '@utils/roles';
+import { ROLES, ROLE_LABELS } from '@utils/roles';
+import { getAvailableRoles, getDashboardRoute } from '@utils/roleRoutes';
 
-// ── Helpers ───────────────────────────────────────────────────────
+// Rôles ayant un vrai dashboard routé dans App.jsx
+const SWITCHABLE_ROLES = [ROLES.SUPER_ADMIN, ROLES.ADMIN_ORG, ROLES.JURY, ROLES.MANAGER, ROLES.CANDIDAT];
+
+// --- Helpers -----------------------------------------
 
 /**
  * getMenuBase
@@ -44,7 +48,7 @@ function getMenuConfigFromPath(pathname, role) {
     return configs.find((c) => pathname.startsWith(c.base)) || menuByRole[role] || null;
 }
 
-// ── OrgSwitcher ───────────────────────────────────────────────────
+// --- OrgSwitcher -------------------------------------------
 
 /**
  * Affiché uniquement pour organization_owner quand l'user
@@ -123,7 +127,83 @@ OrgSwitcher.propTypes = {
     onSwitch: PropTypes.func.isRequired,
 };
 
-// ── Sidebar ───────────────────────────────────────────────────────
+// --- RoleSwitcher -------------------------------------------
+
+/**
+ * Affiché dès que l'utilisateur a accès à plus d'un dashboard (ex:
+ * organization_owner + jury). Contrairement à OrgSwitcher, aucune donnée à
+ * charger : user.roles/organizations/elections sont déjà dans AuthContext
+ * après connexion — changer de rôle est une simple navigation.
+ */
+function RoleSwitcher({ currentRole, roles, onSwitch }) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+
+    useEffect(() => {
+        const handleOutside = (e) => {
+            if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+        };
+        document.addEventListener('mousedown', handleOutside);
+        return () => document.removeEventListener('mousedown', handleOutside);
+    }, []);
+
+    return (
+        <div ref={ref} className="relative mb-3">
+            <button
+                onClick={() => setOpen(o => !o)}
+                className="w-full flex items-center gap-2 px-3 py-2.5 rounded-[var(--radius-md)]
+                           bg-[var(--color-gray-dark)] hover:bg-white/10 transition-colors text-left"
+            >
+                <div className="w-7 h-7 rounded-md bg-[var(--color-primary)]/20 flex items-center justify-center shrink-0">
+                    <LayoutGrid size={14} className="text-[var(--color-primary)]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <p className="text-xs text-[var(--color-gray-light)] leading-none mb-0.5">
+                        Espace de travail
+                    </p>
+                    <p className="text-sm text-white font-medium truncate leading-tight">
+                        {ROLE_LABELS[currentRole] ?? currentRole}
+                    </p>
+                </div>
+                <ChevronDown
+                    size={14}
+                    className={`text-[var(--color-gray-light)] shrink-0 transition-transform
+                        ${open ? 'rotate-180' : ''}`}
+                />
+            </button>
+
+            {open && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--color-dark)]
+                                border border-white/10 rounded-[var(--radius-md)] shadow-xl z-[60]">
+                    {roles.map(r => (
+                        <button
+                            key={r}
+                            onClick={() => { onSwitch(r); setOpen(false); }}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/10
+                                       transition-colors text-left border-b border-white/5 last:border-0"
+                        >
+                            <div className="w-6 h-6 rounded bg-[var(--color-primary)]/20 flex items-center justify-center shrink-0">
+                                <LayoutGrid size={12} className="text-[var(--color-primary)]" />
+                            </div>
+                            <span className="text-sm text-white truncate flex-1">{ROLE_LABELS[r] ?? r}</span>
+                            {r === currentRole && (
+                                <Check size={14} className="text-[var(--color-primary)] shrink-0" />
+                            )}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+RoleSwitcher.propTypes = {
+    currentRole: PropTypes.string.isRequired,
+    roles: PropTypes.array.isRequired,
+    onSwitch: PropTypes.func.isRequired,
+};
+
+// ---Sidebar -------------------------------------------
 
 /**
  * Props org, orgs, orgUuid, onSwitchOrg :
@@ -142,14 +222,19 @@ export default function Sidebar({
     orgUuid = null,
     onSwitchOrg = () => { },
 }) {
-    const { logout } = useAuth();
+    const { logout, user: authUser } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
-    const isOrgDashboard = role === ROLES.ADMIN_ORG ;
+    const isOrgDashboard = role === ROLES.ADMIN_ORG;
     const base = getMenuBase(role, orgUuid);
     const menuConfig = getMenuConfigFromPath(location.pathname, role);
     const { menu } = menuConfig ?? { menu: [] };
+
+    // Dashboards accessibles par l'utilisateur — switcher visible dès qu'il
+    // y en a plus d'un (multi-rôles : ex. organization_owner + jury).
+    const switchableRoles = getAvailableRoles(authUser).filter((r) => SWITCHABLE_ROLES.includes(r));
+    const handleSwitchRole = (targetRole) => navigate(getDashboardRoute(targetRole));
 
     const handleLogout = async () => {
         await toast.promise(logout(), {
@@ -217,6 +302,15 @@ export default function Sidebar({
                         <Logo />
                     </div>
 
+                    {/* Switcher de dashboard (utilisateurs multi-rôles uniquement) */}
+                    {switchableRoles.length > 1 && (
+                        <RoleSwitcher
+                            currentRole={role}
+                            roles={switchableRoles}
+                            onSwitch={handleSwitchRole}
+                        />
+                    )}
+
                     {/* Switcher organisation (org dashboard uniquement) */}
                     {isOrgDashboard && org ? (
                         <OrgSwitcher
@@ -258,9 +352,17 @@ export default function Sidebar({
                 {/* BOTTOM */}
                 <div className="border-t border-[var(--color-gray-dark)] pt-4">
                     <div className="flex items-center gap-3 mb-3">
-                        <div className="w-8 h-8 rounded-full bg-[var(--color-gray)] flex items-center justify-center">
-                            <CircleUser size={30} />
-                        </div>
+                        {authUser?.photo ? (
+                            <img
+                                src={authUser.photo}
+                                alt={user}
+                                className="w-8 h-8 rounded-full object-cover shrink-0"
+                            />
+                        ) : (
+                            <div className="w-8 h-8 rounded-full bg-[var(--color-gray)] flex items-center justify-center shrink-0">
+                                <CircleUser size={30} />
+                            </div>
+                        )}
                         <div className="min-w-0">
                             <p className="text-sm text-white capitalize truncate">{user}</p>
                             <p className="text-xs text-[var(--color-gray-light)] capitalize">

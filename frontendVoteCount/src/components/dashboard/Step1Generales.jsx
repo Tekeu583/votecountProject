@@ -46,7 +46,7 @@ const VOTE_TYPES = [
     { id: 1, value: 'single', label: 'Vote simple', desc: 'Chaque votant choisit 1 candidat', icon: CheckCircle },
     { id: 2, value: 'multiple', label: 'Vote multiple', desc: 'Chaque votant choisit plusieurs candidats', icon: CheckSquare },
     { id: 3, value: 'ranked', label: 'Vote par classement', desc: 'Classement par ordre de préférence', icon: Trophy },
-    { id: 4, value: 'score', label: 'Vote par note', desc: 'Chaque candidat reçoit une note', icon: Star },
+    { id: 4, value: 'score', label: 'Vote par note', desc: 'Bientôt disponible', icon: Star, disabled: true },
     { id: 5, value: 'weighted', label: 'Vote pondéré', desc: 'Vote public + jury avec poids', icon: Scale },
 ];
 
@@ -76,6 +76,19 @@ const VERIFICATION_MODES = [
 ];
 
 const CURRENCIES = ['XAF', 'EUR', 'USD', 'GBP', 'XOF'];
+
+// Un <input type="datetime-local"> renvoie une chaîne naïve ("2026-07-14T20:50",
+// sans fuseau) — `new Date(...)` l'interprète comme une heure LOCALE au
+// navigateur, donc .toISOString() donne bien l'UTC correspondant. Sans cette
+// conversion, le backend (toujours en UTC) traite l'heure locale saisie
+// comme si c'était déjà de l'UTC — l'élection démarre alors avec le décalage
+// horaire de l'utilisateur en retard sur l'heure prévue.
+const toUtcIso = (localDatetime) => (localDatetime ? new Date(localDatetime).toISOString() : null);
+
+// Calculée une seule fois au chargement du module (pas pendant le rendu
+// d'un composant — Date.now() y est interdit par la règle react-hooks/purity).
+// Une minute de marge sur "maintenant" pour l'attribut min du champ date d'ouverture.
+const MIN_START_AT = new Date(Date.now() + 60000).toISOString().slice(0, 16);
 
 const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
     const [image, setImage] = useState(null);
@@ -109,7 +122,13 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
         allow_guest_vote: initialData.allow_guest_vote ?? false,
         fraud_detection_enabled: initialData.fraud_detection_enabled ?? true,
         has_categories: initialData.has_categories ?? false,
-        scrutin_type: initialData.scrutin_type ?? ''
+        scrutin_type: initialData.scrutin_type ?? '',
+
+        // Pondération vote public / jury (vote_type = weighted) — stockées
+        // en % côté formulaire, converties en fractions 0-1 avant envoi
+        // (mêmes défauts que la DB : 100% public / 0% jury).
+        public_weight_pct: initialData.public_weight != null ? Math.round(initialData.public_weight * 100) : 100,
+        jury_weight_pct: initialData.jury_weight != null ? Math.round(initialData.jury_weight * 100) : 0,
     });
 
     const [errors, setErrors] = useState({});
@@ -127,6 +146,37 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
         setField(name, type === 'checkbox' ? checked : value);
+    };
+
+    // Le vote multiple répartit un montant par candidat (amount / vote_price) —
+    // il n'a de sens que pour une élection payante. On force payment_type à
+    // "paid" dès la sélection pour éviter la combinaison invalide plutôt que
+    // de laisser l'utilisateur la découvrir seulement à la soumission.
+    const handleVoteTypeChange = (e) => {
+        const { value } = e.target;
+        setForm(prev => ({
+            ...prev,
+            vote_type: value,
+            payment_type: value === 'multiple' ? 'paid' : prev.payment_type,
+        }));
+        setErrors(prev => {
+            const c = { ...prev };
+            delete c.vote_type;
+            delete c.payment_type;
+            return c;
+        });
+    };
+
+    // Les deux poids sont toujours liés pour sommer à 100 — évite un état
+    // invalide (somme ≠ 100) plutôt que de le signaler après coup.
+    const setPublicWeightPct = (value) => {
+        const v = Math.max(0, Math.min(100, Number(value) || 0));
+        setForm(prev => ({ ...prev, public_weight_pct: v, jury_weight_pct: 100 - v }));
+    };
+
+    const setJuryWeightPct = (value) => {
+        const v = Math.max(0, Math.min(100, Number(value) || 0));
+        setForm(prev => ({ ...prev, jury_weight_pct: v, public_weight_pct: 100 - v }));
     };
 
     //photo
@@ -172,6 +222,10 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
             }
         }
 
+        if (form.vote_type === 'multiple' && form.payment_type !== 'paid') {
+            e.vote_type = 'Le vote multiple nécessite une élection payante';
+        }
+
         if (form.accepts_candidates && isPublic) {
             if (!form.candidacy_start_at) e.candidacy_start_at = 'Date d’ouverture requise';
             if (!form.candidacy_end_at) e.candidacy_end_at = 'Date de clôture requise';
@@ -201,6 +255,20 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
             dataToSend.candidacy_start_at = null;
             dataToSend.candidacy_end_at = null;
             dataToSend.max_candidates = 0;
+        }
+
+        // Conversion heure locale (datetime-local) → UTC avant envoi au backend.
+        dataToSend.start_at = toUtcIso(dataToSend.start_at);
+        dataToSend.end_at = toUtcIso(dataToSend.end_at);
+        dataToSend.candidacy_start_at = toUtcIso(dataToSend.candidacy_start_at);
+        dataToSend.candidacy_end_at = toUtcIso(dataToSend.candidacy_end_at);
+
+        // Le backend attend des fractions 0-1, pas des pourcentages.
+        delete dataToSend.public_weight_pct;
+        delete dataToSend.jury_weight_pct;
+        if (form.vote_type === 'weighted') {
+            dataToSend.public_weight = form.public_weight_pct / 100;
+            dataToSend.jury_weight = form.jury_weight_pct / 100;
         }
 
         onNext(dataToSend);
@@ -311,15 +379,18 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
                             return (
                                 <label
                                     key={vt.id}
-                                    className={`p-4 border rounded-[var(--radius-md)] cursor-pointer flex items-start gap-3 transition-all
-                                    ${form.vote_type === vt.value ? 'border-[var(--color-primary)] bg-blue-50' : 'border-[var(--color-gray-light)] hover:border-[var(--color-primary)]/50'}`}
+                                    className={`p-4 border rounded-[var(--radius-md)] flex items-start gap-3 transition-all
+                                    ${vt.disabled
+                                        ? 'cursor-not-allowed opacity-50 border-[var(--color-gray-light)] bg-gray-50'
+                                        : 'cursor-pointer ' + (form.vote_type === vt.value ? 'border-[var(--color-primary)] bg-blue-50' : 'border-[var(--color-gray-light)] hover:border-[var(--color-primary)]/50')}`}
                                 >
                                     <input
                                         type="radio"
                                         name="vote_type"
                                         value={vt.value}
                                         checked={form.vote_type === vt.value}
-                                        onChange={handleChange}
+                                        onChange={handleVoteTypeChange}
+                                        disabled={vt.disabled}
                                         className="mt-1"
                                     />
                                     <div>
@@ -329,6 +400,46 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
                                 </label>)
                         })}
                     </div>
+                    {form.vote_type === 'multiple' && (
+                        <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                            <AlertCircle size={12} /> Le vote multiple nécessite une élection payante — le paiement a été activé automatiquement.
+                        </p>
+                    )}
+
+                    {form.vote_type === 'weighted' && (
+                        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-[var(--radius-md)] p-5">
+                            <p className="text-sm font-medium text-[var(--color-dark)] mb-3">
+                                Répartition du score final entre vote public et jury
+                            </p>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs text-[var(--color-gray)] mb-1">Poids du vote public (%)</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        value={form.public_weight_pct}
+                                        onChange={(e) => setPublicWeightPct(e.target.value)}
+                                        className="w-full px-4 py-3 border border-[var(--color-gray-light)] rounded-[var(--radius-md)] focus:outline-none focus:border-[var(--color-primary)]"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-[var(--color-gray)] mb-1">Poids du jury (%)</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        value={form.jury_weight_pct}
+                                        onChange={(e) => setJuryWeightPct(e.target.value)}
+                                        className="w-full px-4 py-3 border border-[var(--color-gray-light)] rounded-[var(--radius-md)] focus:outline-none focus:border-[var(--color-primary)]"
+                                    />
+                                </div>
+                            </div>
+                            <p className="text-xs text-[var(--color-gray)] mt-2">
+                                La somme est toujours ramenée à 100 %. Vous pourrez ensuite définir les critères de notation et affecter des membres du jury depuis la gestion de l'élection.
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 {/* Mode d'élection + Visibilité */}
@@ -432,7 +543,7 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
                                 type="datetime-local"
                                 name="start_at"
                                 value={form.start_at}
-                                min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                                min={MIN_START_AT}
                                 onChange={handleChange}
                                 className={`w-full px-4 py-3 border rounded-[var(--radius-md)] focus:outline-none focus:border-[var(--color-primary)] ${errors.start_at ? 'border-red-500' : 'border-[var(--color-gray-light)]'}`}
                                 required

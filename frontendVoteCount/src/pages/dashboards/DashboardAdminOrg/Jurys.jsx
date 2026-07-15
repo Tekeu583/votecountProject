@@ -1,115 +1,125 @@
-import { Plus, Search, Edit2, Trash2, Users, Vote, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Users, Vote, RefreshCw } from 'lucide-react';
 import TextInput from '@components/ui/TextInput';
 import toast from 'react-hot-toast';
 import { useDebounce } from '@hooks/useDebounce';
+import { useOrg } from '@hooks/useOrg';
 import JuryModal from './JuryModal';
-import { useState, useMemo } from 'react';
-import StatCard from "@/components/dashboard/StatCard";
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import StatCard from '@/components/dashboard/StatCard';
+import { electionsApi, juryApi } from '@services/api';
+import { FadeLoader } from 'react-spinners';
+
+const MAX_ELECTIONS_FETCHED = 20;
 
 const Jurys = () => {
+  const { org } = useOrg();
+
+  const [elections, setElections] = useState([]);
+  const [loadingElections, setLoadingElections] = useState(true);
+
+  // { uuid, full_name, email, photo, assignments: [{electionUuid, electionTitle}] }
+  const [membres, setMembres] = useState([]);
+  const [loadingMembres, setLoadingMembres] = useState(false);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('add');
   const [juryToEdit, setJuryToEdit] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 400);
   const [selectedElectionFilter, setSelectedElectionFilter] = useState('');
-  const [selectedAssignmentId, setSelectedAssignmentId] = useState({});
 
-  const membres = useMemo(() => [
-    {
-      id: 1,
-      initiales: 'FT',
-      color: 'bg-blue-100 text-blue-700',
-      nom: 'fokam',
-      email: 'fokam@gmail.com',
-      assignments: [
-        { id: 4, election: 'Innovation 2026', status: 'Actif' },
-        { id: 5, election: 'Startups Q3', status: 'Retiré' },
-      ],
-    },
-    {
-      id: 2,
-      initiales: 'ML',
-      color: 'bg-purple-100 text-purple-700',
-      nom: 'Muriel',
-      email: 'muriel@corporate.fr',
-      assignments: [
-        { id: 3, election: 'Assemblée Générale Extraordinaire', status: 'Actif' },
-        { id: 1, election: "Élection du Comité d'Entreprise 2026", status: 'Actif' },
-      ],
-    },
-    {
-      id: 3,
-      initiales: 'PL',
-      color: 'bg-gray-100 text-gray-700',
-      nom: 'pradier',
-      email: 'pradier@gmail.com',
-      assignments: [
-        { id: 4, election: 'Innovation 2026', status: 'Invitation' },
-      ],
-    },
-  ], []);
+  // Élections de l'organisation — sert au sélecteur de filtre et au modal.
+  // Seules les élections à vote pondéré nécessitent un jury.
+  useEffect(() => {
+    if (!org?.uuid) return;
+    const fetchElections = async () => {
+      setLoadingElections(true);
+      try {
+        const res = await electionsApi.getAll({
+          organization_uuid: org.uuid,
+          per_page: 100,
+          vote_type: 'weighted',
+        });
+        setElections(res.data?.data ?? []);
+      } catch {
+        toast.error('Impossible de charger les élections.');
+      } finally {
+        setLoadingElections(false);
+      }
+    };
+    fetchElections();
+  }, [org?.uuid]);
 
-  //gestion changement election
-  const handleElectionChange = (membreId, assignmentId) => {
-    setSelectedAssignmentId(prev => ({
-      ...prev,
-      [membreId]: Number.parseInt(assignmentId)
-    }));
-  };
-  // statut dynamique
-  const getCurrentStatus = (membre) => {
-    const selected = getSelectedAssignment(membre);
-    if (!selected) {
-      return { label: "Non assigné", color: "bg-gray-100 text-gray-600" };
+  // Regroupe les jurés par utilisateur (une ligne = un juré, avec toutes ses
+  // affectations) à partir des listes par-élection renvoyées par l'API.
+  const loadMembres = useCallback(async () => {
+    if (elections.length === 0) {
+      setMembres([]);
+      return;
     }
 
-    switch (selected.status) {
-      case "Actif":
-        return { label: "Actif", color: "bg-green-100 text-green-700" };
-      case "Invitation":
-        return { label: "Invitation envoyée", color: "bg-orange-100 text-orange-700" };
-      case "Retiré":
-        return { label: "Retiré", color: "bg-red-100 text-red-700" };
-      default:
-        return { label: selected.status, color: "bg-gray-100 text-gray-600" };
+    setLoadingMembres(true);
+    try {
+      const targets = selectedElectionFilter
+        ? elections.filter((e) => e.uuid === selectedElectionFilter)
+        : elections.slice(0, MAX_ELECTIONS_FETCHED);
+
+      const results = await Promise.all(
+        targets.map((election) =>
+          juryApi.getAll(election.uuid)
+            .then((res) => (res.data?.data ?? []).map((j) => ({ ...j, electionUuid: election.uuid, electionTitle: election.title })))
+            .catch(() => [])
+        )
+      );
+
+      const byUuid = new Map();
+      for (const jury of results.flat()) {
+        const assignment = { electionUuid: jury.electionUuid, electionTitle: jury.electionTitle, status: jury.status };
+        if (byUuid.has(jury.uuid)) {
+          byUuid.get(jury.uuid).assignments.push(assignment);
+        } else {
+          byUuid.set(jury.uuid, {
+            uuid: jury.uuid,
+            full_name: jury.full_name,
+            email: jury.email,
+            photo: jury.photo,
+            assignments: [assignment],
+          });
+        }
+      }
+
+      setMembres(Array.from(byUuid.values()));
+    } finally {
+      setLoadingMembres(false);
     }
-  };
-  const elections = useMemo(() => [
-    { id: 1, title: "Élection du Comité d'Entreprise 2026" },
-    { id: 2, title: "Vote sur le Télétravail - Q3" },
-    { id: 3, title: "Assemblée Générale Extraordinaire" },
-    { id: 4, title: "Innovation 2026" },
-    { id: 5, title: "Startups Q3" },
-  ], []);
+  }, [elections, selectedElectionFilter]);
+
+  useEffect(() => {
+    loadMembres();
+  }, [loadMembres]);
+
+  const scrutinsAvecJury = useMemo(
+    () => new Set(membres.flatMap((m) => m.assignments.map((a) => a.electionUuid))).size,
+    [membres]
+  );
+
+  const initiales = (fullName) => (fullName || '?')
+    .split(' ')
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
 
   const filteredMembres = useMemo(() => {
-    let result = membres;
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase().trim();
-      result = result.filter((membre) =>
-        membre.nom.toLowerCase().includes(term) ||
-        membre.email.toLowerCase().includes(term) ||
-        membre.assignments.some(a => a.election.toLowerCase().includes(term))
-      );
-    }
+    if (!debouncedSearch.trim()) return membres;
+    const term = debouncedSearch.toLowerCase().trim();
+    return membres.filter((membre) =>
+      membre.full_name?.toLowerCase().includes(term) ||
+      membre.email?.toLowerCase().includes(term) ||
+      membre.assignments.some((a) => a.electionTitle.toLowerCase().includes(term))
+    );
+  }, [debouncedSearch, membres]);
 
-    if (selectedElectionFilter) {
-      result = result.filter((membre) =>
-        membre.assignments.some(a => a.id === Number(selectedElectionFilter))
-      );
-    }
-
-    return result;
-  }, [searchTerm, selectedElectionFilter, membres]);
-
-  const getSelectedAssignment = (membre) => {
-    const selectedId = selectedAssignmentId[membre.id];
-    if (selectedId) {
-      return membre.assignments.find(a => a.id === selectedId);
-    }
-    return membre.assignments[0] || null;
-  };
   const openAddModal = () => {
     setModalMode('add');
     setJuryToEdit(null);
@@ -118,21 +128,38 @@ const Jurys = () => {
 
   const openEditModal = (membre) => {
     setModalMode('edit');
-    const formattedJury = {
-      ...membre,
-      polls: membre.assignments.map((assignment) => ({
-        id: assignment.id,
-        title: assignment.election,
-        statut: assignment.status === 'Invitation' ? 'Invitation envoyée' : assignment.status,
-      }))
-    };
-    setJuryToEdit(formattedJury);
+    setJuryToEdit({ userUuid: membre.uuid, email: membre.email, assignments: membre.assignments });
     setIsModalOpen(true);
   };
+
+  const handleRemove = async (membre, assignment) => {
+    if (!window.confirm(`Retirer ${membre.full_name} de "${assignment.electionTitle}" ?`)) return;
+    try {
+      await juryApi.delete(assignment.electionUuid, membre.uuid);
+      toast.success('Juré retiré avec succès');
+      loadMembres();
+    } catch (error) {
+      toast.error(error.response?.data?.message ?? 'Erreur lors du retrait');
+    }
+  };
+
   const resetFilters = () => {
     setSearchTerm('');
     setSelectedElectionFilter('');
   };
+
+  const handleModalSuccess = (message) => {
+    toast.success(message);
+    loadMembres();
+  };
+
+  if (loadingElections) {
+    return (
+      <div className="h-[calc(100vh-68px)] flex items-center justify-center">
+        <FadeLoader color="#1e40af" cssOverride={{ display: 'block', margin: '0 auto' }} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 bg-[var(--color-background-white)] p-2">
@@ -142,7 +169,7 @@ const Jurys = () => {
             Gestion des Membres du Jury
           </h1>
           <p className="text-[var(--color-gray)] mt-1 text-sm md:text-base">
-            Gérez les membres de vos jurys et leurs assignments
+            Gérez les membres de vos jurys et leurs affectations
           </p>
         </div>
 
@@ -151,32 +178,14 @@ const Jurys = () => {
           className="btn-primary flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-medium w-full lg:w-auto whitespace-nowrap"
         >
           <Plus size={18} />
-          Inviter un membre de jury
+          Affecter un membre de jury
         </button>
       </div>
 
       {/* Statistiques Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 capitalize">
-        <StatCard
-          title="totals des jurys"
-          value="12"
-          icon={Users}
-          trend="+2 ce mois"
-          delay={0}
-        />
-        <StatCard
-          title="Scrutins Actifs"
-          value="12"
-          icon={Vote}
-          delay={100}
-        />
-        <StatCard
-          title="En attente"
-          value="3"
-          icon={Vote}
-          className="text-orange-500"
-          delay={200}
-        />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 capitalize">
+        <StatCard title="Total des jurés" value={membres.length} icon={Users} delay={0} />
+        <StatCard title="Scrutins avec jury" value={scrutinsAvecJury} icon={Vote} delay={100} />
       </div>
 
       {/* Tableau */}
@@ -206,7 +215,7 @@ const Jurys = () => {
             >
               <option value="">Tous les scrutins</option>
               {elections.map((election) => (
-                <option key={election.id} value={election.id}>
+                <option key={election.uuid} value={election.uuid}>
                   {election.title}
                 </option>
               ))}
@@ -226,120 +235,83 @@ const Jurys = () => {
         </div>
 
         {/* Table */}
-
         <div className="bg-white overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[850px]">
               <thead>
                 <tr className="border-b border-b-[var(--color-gray-light)] bg-[var(--color-gray-light)] capitalize">
                   <th className="text-left py-2 px-2 md:px-6 font-medium text-[var(--color-dark)]">MEMBRES</th>
-                  <th className="text-left py-2 px-2 md:px-6 font-medium text-[var(--color-dark)]">SCRUTIN ASSIGNÉS</th>
-                  <th className="text-left py-2 px-2 md:px-6 font-medium text-[var(--color-dark)]">STATUT</th>
+                  <th className="text-left py-2 px-2 md:px-6 font-medium text-[var(--color-dark)]">SCRUTINS ASSIGNÉS</th>
                   <th className="text-left py-2 px-2 md:px-6 font-medium text-[var(--color-dark)]">ACTIONS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-gray-light)]">
-                {filteredMembres.map((membre) => {
-                  const selectedAssignment = getSelectedAssignment(membre);
-                  const status = getCurrentStatus(membre);
-                  return (
-                    <tr key={membre.id} className="hover:bg-[var(--color-background-white)] transition-colors">
-
+                {loadingMembres ? (
+                  <tr><td colSpan={3} className="text-center py-10 text-[var(--color-gray)]">Chargement...</td></tr>
+                ) : filteredMembres.length === 0 ? (
+                  <tr><td colSpan={3} className="text-center py-10 text-[var(--color-gray)]">Aucun juré trouvé</td></tr>
+                ) : (
+                  filteredMembres.map((membre) => (
+                    <tr key={membre.uuid} className="hover:bg-[var(--color-background-white)] transition-colors">
                       <td className="px-2 py-2 md:px-6">
                         <div className="flex items-center gap-4">
-                          <div className={`w-10 h-10 flex items-center justify-center rounded-full text-sm font-semibold ${membre.color}`}>
-                            {membre.initiales}
+                          <div className="w-10 h-10 flex items-center justify-center rounded-full text-sm font-semibold bg-blue-100 text-blue-700">
+                            {initiales(membre.full_name)}
                           </div>
                           <div>
-                            <p className="font-medium text-[var(--color-dark)]">{membre.nom}</p>
+                            <p className="font-medium text-[var(--color-dark)]">{membre.full_name}</p>
                             <p className="text-sm text-[var(--color-gray)]">{membre.email}</p>
                           </div>
                         </div>
                       </td>
 
                       <td className="px-2 py-2 md:px-6">
-                        <select
-                          value={selectedAssignment?.id || ''}
-                          onChange={(e) => handleElectionChange(membre.id, Number(e.target.value))}
-                          className="w-full px-4 py-3.5
-                           bg-white border border-gray-300
-                           text-base md:text-sm text-gray-700
-                           rounded-[var(--radius-md)]
-                           focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]
-                           min-h-[52px]"
-                        >
-                          {membre.assignments.length > 0 ? (
-                            membre.assignments.map((a) => (
-                              <option key={a.id} value={a.id}>
-                                {a.election}
-                              </option>
-                            ))
-                          ) : (
-                            <option>Aucun scrutin assigné</option>
-                          )}
-                        </select>
-                      </td>
-                      <td className="px-2 py-2 md:px-6">
-                        <span className={`inline-flex px-4 py-1.5 text-xs font-medium rounded-full ${status.color}`}>
-                          {status.label}
-                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {membre.assignments.map((a) => (
+                            <span
+                              key={a.electionUuid}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700"
+                            >
+                              {a.electionTitle}
+                              <button
+                                type="button"
+                                onClick={() => handleRemove(membre, a)}
+                                className="rounded-full p-0.5 -mr-1 hover:bg-red-600 hover:text-white transition-colors"
+                                title="Retirer ce juré de cette élection"
+                                aria-label="Retirer ce juré de cette élection"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
                       </td>
 
                       <td className="px-2 py-2 md:px-6">
-                        <div className="flex items-center gap-4 md:gap-6 text-sm">
-                          {status.label === 'Invitation envoyée' ? (
-                            <>
-                              <button className="text-blue-600 hover:text-blue-700 font-medium">Renvoyer</button>
-                              <button className="text-red-600 hover:text-red-700 font-medium">Annuler</button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                onClick={() => openEditModal(membre)}
-                                className="flex items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors p-1"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => toast.success("Jury retiré avec succès")}
-                                className="flex items-center gap-1 text-gray-600 hover:text-red-600 transition-colors p-1"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </>
-                          )}
-                        </div>
+                        <button
+                          onClick={() => openEditModal(membre)}
+                          className="flex items-center gap-1 text-gray-600 hover:text-blue-600 transition-colors p-1"
+                          title="Modifier les affectations"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
-                  );
-                }
-                )
-                }
+                  ))
+                )}
               </tbody>
             </table>
           </div>
         </div>
-
-        {/* Pagination */}
-        <div className="flex flex-col lg:flex-row justify-between items-center p-4 text-sm gap-3">
-          <span className="text-[var(--color-gray)]">
-            Affichage de 1 à {filteredMembres.length} sur {membres.length} membres
-          </span>
-
-          <div className="flex gap-2">
-            <button className="px-3 py-1 border rounded"><ChevronLeft size={16} /></button>
-            <button className="px-3 py-1 bg-[var(--color-primary)] text-[var(--color-white)] rounded">1</button>
-            <button className="px-3 py-1 border rounded"><ChevronRight size={16} /></button>
-          </div>
-        </div>
       </div>
+
       <JuryModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         mode={modalMode}
         juryToEdit={juryToEdit}
         elections={elections}
-        onSuccess={(message) => toast.success(message)}
+        onSuccess={handleModalSuccess}
         onError={(message) => toast.error(message)}
       />
     </div>

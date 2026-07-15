@@ -3,9 +3,9 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { Menu, X, ChevronDown, LogOut,Vote } from "lucide-react";
 import Logo from "../Logo";
 import { useAuth } from "@hooks/useAuth";
-import { getRoleBaseRoute } from "@utils/roleRoutes";
+import { getRoleBaseRoute, getPrimaryRole } from "@utils/roleRoutes";
+import { ROLES } from "@utils/roles";
 import { toast } from "react-hot-toast";
-import { getPrimaryRole } from '@utils/roleRoutes';
 import { useVoterSession } from "@hooks/useVoterSession";
 export default function Navbar() {
     const [isOpen, setIsOpen] = useState(false);
@@ -35,7 +35,14 @@ export default function Navbar() {
         navigate("/");
     };
 
-    const dashboardLink = user ? getRoleBaseRoute(getPrimaryRole(user)) : '/';
+    // Un simple votant (rôle "user") n'a aucun dashboard réel (aucune route
+    // /voter n'existe) — "Dashboard"/"Profil" ne doivent apparaître que pour
+    // les rôles ayant un vrai espace dédié (super_admin/organization_owner/
+    // jury/candidat), pas pour tout utilisateur authentifié.
+    const primaryRole = user ? getPrimaryRole(user) : null;
+    const hasDashboard = Boolean(primaryRole) && primaryRole !== ROLES.USER;
+    const dashboardLink = hasDashboard ? getRoleBaseRoute(primaryRole) : null;
+    const profileLink = hasDashboard ? `${dashboardLink}/settings` : null;
 
     const linkClass = (isActive) => `
         flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-all duration-200
@@ -113,7 +120,7 @@ export default function Navbar() {
                                     <img
                                         src={user?.photo || "https://i.pravatar.cc/40"}
                                         alt={user?.first_name || user?.last_name || "User"}
-                                        className="w-8 h-8 rounded-full"
+                                        className="w-8 h-8 rounded-full object-cover"
                                     />
                                     <ChevronDown size={16} />
                                 </button>
@@ -125,13 +132,17 @@ export default function Navbar() {
                                             <p className="text-xs text-gray-500">{user?.email}</p>
                                         </div>
 
-                                        <NavLink to={dashboardLink} className={({ isActive }) => linkClass(isActive)}>
-                                            Dashboard
-                                        </NavLink>
+                                        {hasDashboard && (
+                                            <>
+                                                <NavLink to={dashboardLink} className={({ isActive }) => linkClass(isActive)}>
+                                                    Dashboard
+                                                </NavLink>
 
-                                        <NavLink to="/profile" className={({ isActive }) => linkClass(isActive)}>
-                                            Profil
-                                        </NavLink>
+                                                <NavLink to={profileLink} className={({ isActive }) => linkClass(isActive)}>
+                                                    Profil
+                                                </NavLink>
+                                            </>
+                                        )}
 
                                         <button
                                             onClick={handleLogout}
@@ -185,22 +196,26 @@ export default function Navbar() {
                                         <img
                                             src={user.photo || "https://i.pravatar.cc/40"}
                                             alt={user.first_name || user.last_name || "User"}
-                                            className="w-8 h-8 rounded-full"
+                                            className="w-8 h-8 rounded-full object-cover"
                                         />
                                         <ChevronDown size={16} />
                                     </button>
                                     {dropdownOpen && (
                                         <div className="absolute right-0 mt-2 w-48 bg-[var(--color-white)] shadow-lg rounded-[var(--radius-md)] border border-[var(--color-gray-light)]">
                                             <div className="px-4 py-2 border-b border-b-[var(--color-gray-light)] ">
-                                                <p className="text-sm font-semibold">{user.name}</p>
+                                                <p className="text-sm font-semibold">{user.first_name} {user.last_name}</p>
                                                 <p className="text-xs text-gray-500">{user.email}</p>
                                             </div>
-                                            <NavLink to={dashboardLink} className={({ isActive }) => linkClass(isActive)}>
-                                                Dashboard
-                                            </NavLink>
-                                            <NavLink to="/profile" className={({ isActive }) => linkClass(isActive)}>
-                                                Profil
-                                            </NavLink>
+                                            {hasDashboard && (
+                                                <>
+                                                    <NavLink to={dashboardLink} className={({ isActive }) => linkClass(isActive)}>
+                                                        Dashboard
+                                                    </NavLink>
+                                                    <NavLink to={profileLink} className={({ isActive }) => linkClass(isActive)}>
+                                                        Profil
+                                                    </NavLink>
+                                                </>
+                                            )}
                                             <button
                                                 onClick={handleLogout}
                                                 className="w-full flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50"

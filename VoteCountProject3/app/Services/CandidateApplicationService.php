@@ -86,6 +86,8 @@ class CandidateApplicationService
                 'full_name' => $application->full_name,
                 'slug' => $slug,
                 'photo' => $newPhotoPath,
+                'email' => $application->email,
+                'phone' => $application->phone,
                 'bio' => $application->bio,
                 'manifesto' => $application->manifesto,
                 'slogan' => $application->slogan,

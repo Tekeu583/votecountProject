@@ -275,4 +275,223 @@ class VotingServiceTest extends TestCase
 
         $this->assertEquals(4, $candidate->fresh()->vote_count);
     }
+
+    public function test_validation_classement_rejette_les_doublons_de_rang(): void
+    {
+        // Régression : validateRankedItems() doit rejeter deux candidats
+        // classés au même rang (aucune interprétation possible en IRV).
+        $election = Election::factory()->ongoing()->create(['vote_type' => 'ranked']);
+        $a = Candidate::factory()->approved()->create(['election_id' => $election->id]);
+        $b = Candidate::factory()->approved()->create(['election_id' => $election->id]);
+        $elector = Elector::factory()->create(['election_id' => $election->id]);
+        $session = $this->makeSession($election, $elector);
+
+        $this->expectException(VoteException::class);
+
+        $this->votingService->submitVote(
+            $elector,
+            $election,
+            $session,
+            $this->makeDto([
+                ['candidate_id' => $a->uuid, 'rank_position' => 1],
+                ['candidate_id' => $b->uuid, 'rank_position' => 1],
+            ])
+        );
+    }
+
+    public function test_validation_classement_rejette_un_classement_non_continu(): void
+    {
+        // Régression : un classement 1, 3 (sans 2) doit être rejeté — les
+        // rangs fournis doivent former une séquence continue commençant à 1.
+        $election = Election::factory()->ongoing()->create(['vote_type' => 'ranked']);
+        $a = Candidate::factory()->approved()->create(['election_id' => $election->id]);
+        $b = Candidate::factory()->approved()->create(['election_id' => $election->id]);
+        $elector = Elector::factory()->create(['election_id' => $election->id]);
+        $session = $this->makeSession($election, $elector);
+
+        $this->expectException(VoteException::class);
+
+        $this->votingService->submitVote(
+            $elector,
+            $election,
+            $session,
+            $this->makeDto([
+                ['candidate_id' => $a->uuid, 'rank_position' => 1],
+                ['candidate_id' => $b->uuid, 'rank_position' => 3],
+            ])
+        );
+    }
+
+    public function test_validation_classement_partiel_est_autorise(): void
+    {
+        // Le classement partiel (IRV standard) doit être accepté : l'électeur
+        // ne classe que 2 candidats sur les 5 approuvés.
+        $election = Election::factory()->ongoing()->create(['vote_type' => 'ranked']);
+        $candidates = Candidate::factory()->approved()->count(5)->create(['election_id' => $election->id]);
+        $elector = Elector::factory()->create(['election_id' => $election->id]);
+        $session = $this->makeSession($election, $elector);
+
+        $vote = $this->votingService->submitVote(
+            $elector,
+            $election,
+            $session,
+            $this->makeDto([
+                ['candidate_id' => $candidates[0]->uuid, 'rank_position' => 1],
+                ['candidate_id' => $candidates[1]->uuid, 'rank_position' => 2],
+            ])
+        );
+
+        $this->assertEquals('completed', $vote->status);
+        $this->assertCount(2, $vote->items);
+    }
+
+    public function test_un_vote_multiple_cree_un_seul_vote_avec_plusieurs_items_a_montants_distincts(): void
+    {
+        // Le vote multiple répartit un montant DISTINCT par candidat choisi,
+        // dans un seul Vote (un seul paiement) — pas N votes séparés.
+        $election = Election::factory()->ongoing()->create([
+            'vote_type' => 'multiple',
+            'payment_type' => 'paid',
+            'vote_price' => 10,
+            'max_choices' => 5,
+            'max_votes_per_user' => 50,
+        ]);
+        $a = Candidate::factory()->approved()->create(['election_id' => $election->id]);
+        $b = Candidate::factory()->approved()->create(['election_id' => $election->id]);
+        $c = Candidate::factory()->approved()->create(['election_id' => $election->id]);
+        $elector = Elector::factory()->create(['election_id' => $election->id]);
+        $session = $this->makeSession($election, $elector);
+
+        $vote = $this->votingService->submitVote(
+            $elector,
+            $election,
+            $session,
+            $this->makeDto([
+                ['candidate_id' => $a->uuid, 'amount' => 20], // 2 voix
+                ['candidate_id' => $b->uuid, 'amount' => 10], // 1 voix
+                ['candidate_id' => $c->uuid, 'amount' => 30], // 3 voix
+            ])
+        );
+
+        $this->assertDatabaseCount('votes', 1);
+        $this->assertCount(3, $vote->items);
+        $this->assertEquals(60, (float) $vote->total_amount);
+
+        $quantities = $vote->items->pluck('quantity', 'candidate_id');
+        $this->assertEquals(2, $quantities[$a->id]);
+        $this->assertEquals(1, $quantities[$b->id]);
+        $this->assertEquals(3, $quantities[$c->id]);
+    }
+
+    public function test_multiple_rejette_un_item_sans_montant(): void
+    {
+        // Contrairement à single/score, un montant absent ne doit pas
+        // retomber silencieusement sur "1 voix au prix plein" pour multiple.
+        $election = Election::factory()->ongoing()->create([
+            'vote_type' => 'multiple',
+            'payment_type' => 'paid',
+            'vote_price' => 10,
+            'max_choices' => 5,
+        ]);
+        $a = Candidate::factory()->approved()->create(['election_id' => $election->id]);
+        $b = Candidate::factory()->approved()->create(['election_id' => $election->id]);
+        $elector = Elector::factory()->create(['election_id' => $election->id]);
+        $session = $this->makeSession($election, $elector);
+
+        $this->expectException(VoteException::class);
+
+        $this->votingService->submitVote(
+            $elector,
+            $election,
+            $session,
+            $this->makeDto([
+                ['candidate_id' => $a->uuid, 'amount' => 20],
+                ['candidate_id' => $b->uuid], // pas de montant
+            ])
+        );
+    }
+
+    public function test_weighted_exige_exactement_un_candidat_comme_single(): void
+    {
+        // Le vote public "weighted" est un choix unique — la pondération
+        // jury est un mécanisme séparé (JuryScore), pas quelque chose que
+        // l'électeur renseigne lui-même.
+        $election = Election::factory()->ongoing()->create([
+            'vote_type' => 'weighted',
+            'payment_type' => 'free',
+            'vote_price' => 0,
+        ]);
+        $a = Candidate::factory()->approved()->create(['election_id' => $election->id]);
+        $b = Candidate::factory()->approved()->create(['election_id' => $election->id]);
+        $elector = Elector::factory()->create(['election_id' => $election->id]);
+        $session = $this->makeSession($election, $elector);
+
+        $this->expectException(VoteException::class);
+
+        $this->votingService->submitVote(
+            $elector,
+            $election,
+            $session,
+            $this->makeDto([
+                ['candidate_id' => $a->uuid],
+                ['candidate_id' => $b->uuid],
+            ])
+        );
+    }
+
+    public function test_weighted_accepte_un_seul_candidat(): void
+    {
+        $election = Election::factory()->ongoing()->create([
+            'vote_type' => 'weighted',
+            'payment_type' => 'free',
+            'vote_price' => 0,
+            'max_votes_per_user' => 1,
+        ]);
+        $candidate = Candidate::factory()->approved()->create(['election_id' => $election->id]);
+        $elector = Elector::factory()->create(['election_id' => $election->id]);
+        $session = $this->makeSession($election, $elector);
+
+        $vote = $this->votingService->submitVote(
+            $elector,
+            $election,
+            $session,
+            $this->makeDto([['candidate_id' => $candidate->uuid]])
+        );
+
+        $this->assertEquals('completed', $vote->status);
+        $this->assertCount(1, $vote->items);
+    }
+
+    public function test_completer_un_vote_multiple_incremente_chaque_candidat_de_sa_propre_quantite(): void
+    {
+        $election = Election::factory()->ongoing()->create([
+            'vote_type' => 'multiple',
+            'payment_type' => 'paid',
+            'vote_price' => 10,
+            'max_choices' => 5,
+            'max_votes_per_user' => 50,
+        ]);
+        $a = Candidate::factory()->approved()->create(['election_id' => $election->id]);
+        $b = Candidate::factory()->approved()->create(['election_id' => $election->id]);
+        $elector = Elector::factory()->create(['election_id' => $election->id]);
+        $session = $this->makeSession($election, $elector);
+
+        $vote = $this->votingService->submitVote(
+            $elector,
+            $election,
+            $session,
+            $this->makeDto([
+                ['candidate_id' => $a->uuid, 'amount' => 40], // 4 voix
+                ['candidate_id' => $b->uuid, 'amount' => 10], // 1 voix
+            ])
+        );
+
+        $this->assertEquals(0, $a->fresh()->vote_count);
+        $this->assertEquals(0, $b->fresh()->vote_count);
+
+        $vote->fresh()->markAsCompleted();
+
+        $this->assertEquals(4, $a->fresh()->vote_count);
+        $this->assertEquals(1, $b->fresh()->vote_count);
+    }
 }

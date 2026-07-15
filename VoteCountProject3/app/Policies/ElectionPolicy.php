@@ -74,8 +74,31 @@ class ElectionPolicy
         return $this->update($user, $election) && $election->is_editable;
     }
 
+    /**
+     * Créateur de l'élection ou propriétaire de l'organisation — aucune
+     * ligne election_user n'est jamais créée automatiquement pour eux
+     * (ElectionService::create() ne les attache pas), donc sans ce
+     * raccourci ils échouent silencieusement toute ability qui ne vérifie
+     * que le pivot/une permission Spatie, alors même que update()/delete()
+     * les autorisent déjà via ce même raccourci.
+     */
+    private function isCreatorOrOwner(User $user, Election $election): bool
+    {
+        if ($user->id === $election->created_by) {
+            return true;
+        }
+
+        $organization = $election->organization;
+
+        return $organization && $organization->owner_user_id === $user->id;
+    }
+
     public function manageCandidates(User $user, Election $election): bool
     {
+        if ($this->isCreatorOrOwner($user, $election)) {
+            return true;
+        }
+
         $pivot = $user->elections()->where('election_id', $election->id)->first()?->pivot;
 
         if ($pivot && in_array($pivot->role_slug, ['creator', 'admin', 'manager'])) {
@@ -87,6 +110,10 @@ class ElectionPolicy
 
     public function manageElectors(User $user, Election $election): bool
     {
+        if ($this->isCreatorOrOwner($user, $election)) {
+            return true;
+        }
+
         $pivot = $user->elections()->where('election_id', $election->id)->first()?->pivot;
 
         if ($pivot && in_array($pivot->role_slug, ['creator', 'admin', 'manager'])) {
@@ -96,13 +123,28 @@ class ElectionPolicy
         return $user->can('manage electors');
     }
 
-    public function viewResults(User $user, Election $election): bool
+    public function scoreCandidates(User $user, Election $election): bool
+    {
+        if ($this->isCreatorOrOwner($user, $election)) {
+            return true;
+        }
+
+        $pivot = $user->elections()->where('election_id', $election->id)->first()?->pivot;
+
+        if ($pivot && in_array($pivot->role_slug, ['creator', 'admin', 'manager', 'jury'])) {
+            return true;
+        }
+
+        return $user->can('manage candidates');
+    }
+
+    public function viewResults(?User $user, Election $election): bool
     {
         if ($election->public_results) {
             return true;
         }
 
-        return $this->view($user, $election);
+        return $user ? $this->view($user, $election) : false;
     }
 
     public function vote(User $user, ?Election $election): bool

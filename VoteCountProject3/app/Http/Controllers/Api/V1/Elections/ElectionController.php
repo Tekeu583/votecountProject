@@ -3,21 +3,19 @@
 namespace App\Http\Controllers\Api\V1\Elections;
 
 use App\DTOs\ElectionDTO;
-use App\Enums\ElectionStatus;
+use App\Events\LiveResultsUpdated;
 use App\Http\Controllers\Api\V1\BaseApiController;
 use App\Http\Requests\Api\V1\Elections\CreateElectionRequest;
 use App\Http\Requests\Api\V1\Elections\UpdateElectionRequest;
 use App\Http\Resources\Api\V1\CandidateResource;
 use App\Http\Resources\Api\V1\ElectionResource;
-use App\Models\Candidate;
 use App\Models\Category;
 use App\Models\Election;
-use App\Models\Elector;
 use App\Models\Organization;
 use App\Models\User;
-use App\Models\Vote;
 use App\Services\ElectionService;
 use App\Services\ResultService;
+use App\Services\TrashService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -85,7 +83,7 @@ class ElectionController extends BaseApiController
     public function getCategoryDetails(Election $election, Category $category): JsonResponse
     {
         $category->load(['candidates' => function ($query) use ($election) {
-            $query->where('election_id', $election->id);
+            $query->where('election_id', $election->id)->approved();
         }]);
 
         return response()->json([
@@ -95,15 +93,14 @@ class ElectionController extends BaseApiController
                 'name' => $category->name,
                 'description' => $category->description,
                 'banner' => $category->banner_url,
-                'banner_mobile' => $category->banner_mobile_url,
                 'color' => $category->color,
                 'icon' => $category->icon,
-                'custom_styles' => $category->custom_styles,
             ],
             'election' => [
                 'id' => $election->id,
                 'uuid' => $election->uuid,
                 'title' => $election->title,
+                'banner' => $election->banner ? asset('storage/' . $election->banner) : null,
             ],
             'candidates' => CandidateResource::collection($category->candidates),
         ]);
@@ -116,7 +113,7 @@ class ElectionController extends BaseApiController
     {
         $categories = $election->categories()
             ->with(['candidates' => function ($query) use ($election) {
-                $query->where('election_id', $election->id);
+                $query->where('election_id', $election->id)->approved();
             }])
             ->get()
             ->map(function ($category) {
@@ -139,7 +136,7 @@ class ElectionController extends BaseApiController
                 'id' => $election->id,
                 'uuid' => $election->uuid,
                 'title' => $election->title,
-                'banner' => $election->banner_url,
+                'banner' => $election->banner ? asset('storage/' . $election->banner) : null,
             ],
             'categories' => $categories,
         ]);
@@ -220,7 +217,17 @@ class ElectionController extends BaseApiController
 
         $election->loadCount($countsToLoad);
 
-        return $this->success(new ElectionResource($election));
+        // Scores live pré-calculés au chargement de la page, pour que la barre
+        // de résultats/le badge "classement provisoire" (ranked) s'affichent
+        // immédiatement sans attendre le prochain vote (seul déclencheur du
+        // broadcast WebSocket). Même calcul que celui utilisé pour le flux
+        // privé (VoteController::verifyAccessOtp/submitPrivate).
+        $data = (new ElectionResource($election))->resolve();
+        $data['live_scores'] = $election->real_time_results
+            ? LiveResultsUpdated::computeScores($election)
+            : null;
+
+        return $this->success($data);
     }
 
     /**
@@ -442,6 +449,8 @@ class ElectionController extends BaseApiController
      */
     public function update(UpdateElectionRequest $request, Election $election): JsonResponse
     {
+        $this->authorize('update', $election);
+
         // Supprimer l'ancien banner si un nouveau est fourni
         if ($request->hasFile('banner') && $election->banner) {
             Storage::disk('public')->delete($election->banner);
@@ -487,6 +496,13 @@ class ElectionController extends BaseApiController
      */
     public function destroy(Election $election): JsonResponse
     {
+        $this->authorize('delete', $election);
+
+        if ($election->total_votes > 0) {
+            return $this->error('Impossible de supprimer une élection ayant déjà reçu des votes.', null, 422);
+        }
+
+        TrashService::snapshot($election, $election->organization_id);
         $election->delete();
 
         return $this->noContent('Election deleted successfully');

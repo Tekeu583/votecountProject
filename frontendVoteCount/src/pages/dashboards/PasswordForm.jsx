@@ -13,7 +13,23 @@ export default function PasswordForm({
             <div className="p-2 grid md:grid-cols-2 gap-4">
 
                 <TextInput
-                    label="Mot de passe"
+                    label="Mot de passe actuel"
+                    type="password"
+                    placeholder="••••••••"
+                    value={passwordForm.currentPassword}
+                    onChange={(e) =>
+                        setPasswordForm({
+                            ...passwordForm,
+                            currentPassword: e.target.value,
+                        })
+                    }
+                    iconLeft={Lock}
+                />
+
+                <div className="hidden md:block" />
+
+                <TextInput
+                    label="Nouveau mot de passe"
                     type="password"
                     placeholder="••••••••"
                     value={passwordForm.password}

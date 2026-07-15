@@ -39,11 +39,13 @@ export { notificationsApi }         from './notifications';
 export { plansApi }                 from './plans';
 export { securityApi }              from './security';
 export { juryApi }                  from './jury';
+export { staffApi }                 from './staff';
 export { usersApi }                 from './users';
 export { candidateDocumentsApi, DOCUMENT_TYPES } from './candidateDocuments';
 export { auditApi }                  from './audit';
 export { settingsApi }               from './settings';
 export { categoriesApi }            from './categories';
+export { trashApi }                 from './trash';
 
 
 // ── Utilitaires ────────────────────────────────────────────────────

@@ -1,227 +1,180 @@
-import { useState, useMemo } from "react";
-import { Map, User, Percent, Trophy, Star } from "lucide-react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { User, Percent, Trophy, Star } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import VoteChart from "@components/dashboard/VoteChart";
 import RankingTable from "@components/dashboard/RankingTable";
-import VoteCenterTable from "@components/dashboard/VoteCenterTable";
 import StatCard from "@components/dashboard/StatCard";
+import { candidatesApi, resultsApi } from "@services/api";
+import { FadeLoader } from "react-spinners";
 
-const electionsData = [
-    {
-        id: 1,
-        title: "Élection Bureau 2026",
-
-        stats: {
-            totalVotes: "14,250",
-            percent: "38.5%",
-            position: "1er",
-            juryScore: "92/100",
-        },
-
-        chart: [
-            { name: "Vous (A)", value: 38.5 },
-            { name: "Candidat B", value: 29.2 },
-            { name: "Autres", value: 32.3 },
-        ],
-
-        ranking: [
-            { id: 1, name: "Muriel", votes: "14,250", percent: 38.5 },
-            { id: 2, name: "Audrey", votes: "10,800", percent: 29.2 },
-            { id: 3, name: "Gertrude", votes: "7,120", percent: 19.3 },
-            { id: 4, name: "Muriel", votes: "14,250", percent: 38.5 },
-            { id: 5, name: "Audrey", votes: "10,800", percent: 29.2 },
-            { id: 6, name: "Gertrude", votes: "7,120", percent: 19.3 },
-        ],
-
-        centers: [
-            {
-                name: "Centre Ville - Mairie A",
-                votes: "1,245",
-                percent: 72.4,
-                status: "VALIDÉ",
-            },
-            {
-                name: "Quartier Nord - École B",
-                votes: "892",
-                percent: 45.8,
-                status: "EN COURS",
-            },
-        ],
-    },
-
-    {
-        id: 2,
-        title: "Élection du président du Conseil électoral Administration",
-
-        stats: {
-            totalVotes: "8,120",
-            percent: "52.1%",
-            position: "2e",
-            juryScore: "78/100",
-        },
-
-        chart: [
-            { name: "Vous (A)", value: 52.1 },
-            { name: "Candidat B", value: 30 },
-            { name: "Autres", value: 17.9 },
-        ],
-
-        ranking: [
-            { id: 1, name: "Audrey", votes: "9,000", percent: 55 },
-            { id: 2, name: "Muriel", votes: "8,120", percent: 52.1 },
-            { id: 3, name: "Audrey", votes: "9,000", percent: 55 },
-            { id: 4, name: "Muriel", votes: "8,120", percent: 52.1 },
-            { id: 5, name: "Audrey", votes: "9,000", percent: 55 },
-            { id: 6, name: "Muriel", votes: "8,120", percent: 52.1 },
-        ],
-
-        centers: [
-            {
-                name: "Centre Ville - Mairie A",
-                votes: "1,245",
-                percent: 72.4,
-                status: "VALIDÉ",
-            },
-            {
-                name: "Quartier Nord - École B",
-                votes: "892",
-                percent: 45.8,
-                status: "EN COURS",
-            },
-        ],
-    },
-    {
-        id: 3,
-        title: "Conseil electoral Administration",
-
-        stats: {
-            totalVotes: "9,120",
-            percent: "55.1%",
-            position: "3e",
-            juryScore: "80/100",
-        },
-
-        chart: [
-            { name: "Vous (A)", value: 60.1 },
-            { name: "Candidat B", value: 30 },
-            { name: "Autres", value: 17.9 },
-        ],
-
-        ranking: [
-            { id: 1, name: "Audrey", votes: "9,000", percent: 55 },
-            { id: 2, name: "Muriel", votes: "8,120", percent: 52.1 },
-            { id: 3, name: "tekeu", votes: "9,000", percent: 55 },
-            { id: 4, name: "tonny", votes: "8,120", percent: 52.1 },
-            { id: 5, name: "leo", votes: "9,000", percent: 55 },
-            { id: 6, name: "Muriel", votes: "8,120", percent: 52.1 },
-        ],
-
-        centers: [],
-    },
-    {
-        id: 4,
-        title: "election du bureau Administration",
-
-        stats: {
-            totalVotes: "120",
-            percent: "40.1%",
-            position: "4e",
-            juryScore: "50/100",
-        },
-
-        chart: [
-            { name: "Vous (A)", value: 52.1 },
-            { name: "Candidat B", value: 30 },
-            { name: "Autres", value: 17.9 },
-        ],
-
-        ranking: [
-            { id: 1, name: "Audrey", votes: "9,000", percent: 55 },
-            { id: 2, name: "Muriel", votes: "8,120", percent: 52.1 },
-            { id: 3, name: "Audrey", votes: "9,000", percent: 55 },
-            { id: 4, name: "Muriel", votes: "8,120", percent: 52.1 },
-            { id: 5, name: "Audrey", votes: "9,000", percent: 55 },
-            { id: 6, name: "Muriel", votes: "8,120", percent: 52.1 },
-        ],
-
-        centers: [
-            {
-                name: "Centre Ville - Mairie A",
-                votes: "1,245",
-                percent: 72.4,
-                status: "VALIDÉ",
-            },
-            {
-                name: "Quartier Nord - École B",
-                votes: "892",
-                percent: 45.8,
-                status: "EN COURS",
-            },
-        ],
-    },
-];
 export default function Resultats() {
     const { id } = useParams();
     const navigate = useNavigate();
-    const [selectedId, setSelectedId] = useState(id ? Number(id) : electionsData[0].id);
 
-    const selectedElection = useMemo(() => {
-        return electionsData.find(e => e.id === selectedId);
-    }, [selectedId]);
+    const [candidacies, setCandidacies] = useState([]);
+    const [loadingCandidacies, setLoadingCandidacies] = useState(true);
+    const [results, setResults] = useState([]);
+    const [loadingResults, setLoadingResults] = useState(false);
+    const [notReady, setNotReady] = useState(false);
 
-    if (!selectedElection) return <p>Chargement...</p>;
+    useEffect(() => {
+        const fetchCandidacies = async () => {
+            setLoadingCandidacies(true);
+            try {
+                const res = await candidatesApi.getMine();
+                setCandidacies((res.data?.data ?? []).filter((c) => c.election));
+            } catch {
+                toast.error('Impossible de charger vos candidatures.');
+            } finally {
+                setLoadingCandidacies(false);
+            }
+        };
+        fetchCandidacies();
+    }, []);
+
+    const selectedElectionUuid = id || candidacies[0]?.election.uuid || '';
+    const selected = useMemo(
+        () => candidacies.find((c) => c.election.uuid === selectedElectionUuid) ?? null,
+        [candidacies, selectedElectionUuid]
+    );
+
+    const loadResults = useCallback(async () => {
+        if (!selectedElectionUuid) {
+            setResults([]);
+            setNotReady(false);
+            return;
+        }
+
+        setLoadingResults(true);
+        setNotReady(false);
+        try {
+            const [finalRes, candidatesRes] = await Promise.all([
+                resultsApi.final(selectedElectionUuid).catch((err) => {
+                    if (err.response?.status === 404 || err.response?.status === 403) return null;
+                    throw err;
+                }),
+                candidatesApi.getAll(selectedElectionUuid).catch(() => ({ data: { data: [] } })),
+            ]);
+
+            if (!finalRes) {
+                setResults([]);
+                setNotReady(true);
+                return;
+            }
+
+            const candidatesByUuid = Object.fromEntries(
+                (candidatesRes.data?.data ?? []).map((c) => [c.uuid, c])
+            );
+
+            const rows = (finalRes.data?.data?.results ?? [])
+                .map((r) => ({
+                    uuid: r.candidate_uuid,
+                    name: candidatesByUuid[r.candidate_uuid]?.full_name ?? '—',
+                    votes: r.total_votes ?? 0,
+                    percent: r.percentage ?? 0,
+                    finalScore: r.final_score,
+                    self: selected && r.candidate_uuid === selected.uuid,
+                }))
+                .sort((a, b) => b.votes - a.votes);
+
+            setResults(rows);
+        } catch {
+            toast.error('Impossible de charger les résultats.');
+        } finally {
+            setLoadingResults(false);
+        }
+    }, [selectedElectionUuid, selected]);
+
+    useEffect(() => {
+        loadResults();
+    }, [loadResults]);
+
+    const chartData = useMemo(() => {
+        const own = results.find((r) => r.self);
+        const others = results.filter((r) => !r.self);
+        const rows = own ? [{ name: 'Vous', value: own.percent }, ...others.slice(0, 4).map((r) => ({ name: r.name, value: r.percent }))]
+            : results.slice(0, 5).map((r) => ({ name: r.name, value: r.percent }));
+        return rows;
+    }, [results]);
+
+    const ownResult = results.find((r) => r.self);
+    const position = ownResult ? results.findIndex((r) => r.self) + 1 : null;
+    const showJuryScore = selected?.election?.vote_type === 'weighted';
+
+    if (loadingCandidacies) {
+        return (
+            <div className="h-[calc(100vh-68px)] flex items-center justify-center">
+                <FadeLoader color="#1e40af" cssOverride={{ display: 'block', margin: '0 auto' }} />
+            </div>
+        );
+    }
+
+    if (candidacies.length === 0) {
+        return (
+            <main className="p-4">
+                <div className="bg-white rounded-xl shadow-sm p-10 text-center text-gray-500">
+                    Vous n'avez aucune candidature pour le moment.
+                </div>
+            </main>
+        );
+    }
 
     return (
         <main className="p-4 space-y-6">
 
             {/* HEADER */}
             <div className="flex flex-col sm:flex-row gap-4 justify-between ">
-
                 <div>
                     <h1 className="text-2xl font-bold">Résultats</h1>
                     <p className="text-gray-500 text-sm">
-                        {selectedElection.title}
+                        {selected?.election?.title}
                     </p>
                 </div>
 
                 {/* FILTRE */}
                 <select
-                    value={selectedId}
-                    onChange={(e) => setSelectedId(Number(e.target.value))}
+                    value={selectedElectionUuid}
+                    onChange={(e) => navigate(`/candidat/results/${e.target.value}`)}
                     className="px-4 py-2 border border-[var(--color-gray-light)] rounded-md truncate focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent text-sm"
                 >
-                    {electionsData.map(e => (
-                        <option className="truncate" key={e.id} value={e.id}>
-                            {e.title}
+                    {candidacies.map((c) => (
+                        <option className="truncate" key={c.election.uuid} value={c.election.uuid}>
+                            {c.election.title}
                         </option>
                     ))}
                 </select>
-
-                <button
-                    onClick={() => navigate(`/candidat/results/${selectedId}/centers`)}
-                    className="btn-primary flex gap-2 items-center">
-                    <Map size={18} />
-                    Détails
-                </button>
             </div>
 
-            {/* STATS */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <StatCard icon={User} title="Total des voix" value={selectedElection.stats.totalVotes} color="bg-blue-50" delay={0} />
-                <StatCard icon={Percent} title="Pourcentage global %" value={selectedElection.stats.percent} color="bg-indigo-50" delay={100} />
-                <StatCard icon={Trophy} title="Position actuelle" value={selectedElection.stats.position} color="bg-blue-50" delay={200} />
-                <StatCard icon={Star} title="Score Jury" value={selectedElection.stats.juryScore} color="bg-purple-50" delay={300} />
-            </div>
-
-            {/* CONTENT */}
-            <div className="grid lg:grid-cols-3 gap-4">
-                <VoteChart data={selectedElection.chart} />
-                <div className="lg:col-span-2">
-                    <RankingTable data={selectedElection.ranking} />
+            {loadingResults ? (
+                <div className="bg-white rounded-xl shadow-sm p-10 text-center text-gray-500">
+                    Chargement des résultats...
                 </div>
-            </div>
+            ) : notReady ? (
+                <div className="bg-white rounded-xl shadow-sm p-10 text-center text-gray-500">
+                    Les résultats ne sont pas encore disponibles pour cette élection.
+                </div>
+            ) : (
+                <>
+                    {/* STATS */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <StatCard icon={User} title="Total des voix" value={ownResult?.votes ?? 0} color="bg-blue-50" delay={0} />
+                        <StatCard icon={Percent} title="Pourcentage global %" value={ownResult ? `${ownResult.percent}%` : '—'} color="bg-indigo-50" delay={100} />
+                        <StatCard icon={Trophy} title="Position actuelle" value={position ?? '—'} color="bg-blue-50" delay={200} />
+                        {showJuryScore && (
+                            <StatCard icon={Star} title="Score Jury" value={ownResult?.finalScore ?? '—'} color="bg-purple-50" delay={300} />
+                        )}
+                    </div>
 
-            <VoteCenterTable data={selectedElection.centers} />
+                    {/* CONTENT */}
+                    <div className="grid lg:grid-cols-3 gap-4">
+                        <VoteChart data={chartData} />
+                        <div className="lg:col-span-2">
+                            <RankingTable data={results.map((r) => ({ id: r.uuid, name: r.self ? `${r.name} (vous)` : r.name, votes: r.votes, percent: r.percent }))} />
+                        </div>
+                    </div>
+                </>
+            )}
         </main>
     );
 }

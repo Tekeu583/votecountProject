@@ -96,6 +96,20 @@ class PaymentTransaction extends Model
         return $query->where('type', 'subscription');
     }
 
+    /**
+     * organization_id n'est renseigné directement sur cette table QUE pour
+     * les transactions d'abonnement (cf. migration
+     * add_subscription_support_to_payment_transactions) — pour les votes
+     * payants, il faut remonter via election.organization_id.
+     */
+    public function scopeForOrganization(Builder $query, int $organizationId): Builder
+    {
+        return $query->where(function (Builder $sub) use ($organizationId) {
+            $sub->where('organization_id', $organizationId)
+                ->orWhereHas('election', fn (Builder $eq) => $eq->where('organization_id', $organizationId));
+        });
+    }
+
 
     // ── HELPERS ──────────────────────────────────────────────────────────────────────
 

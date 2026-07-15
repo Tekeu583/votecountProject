@@ -55,12 +55,22 @@ class LiveResultsUpdated implements ShouldBroadcast
 
     private function sumTotalQuantity(): int
     {
-        return (int) DB::table('vote_items')
+        $query = DB::table('vote_items')
             ->join('votes', 'vote_items.vote_id', '=', 'votes.id')
             ->where('votes.election_id', $this->election->id)
-            ->where('votes.status', 'completed')
-            ->sum('vote_items.quantity');
+            ->where('votes.status', 'completed');
+
+        // Pour ranked, chaque bulletin a une ligne vote_items par candidat classé
+        // (donc N lignes pour un bulletin classant N candidats) — sommer quantity
+        // sur toutes ces lignes surcompterait. Le nombre de bulletins réel est le
+        // nombre de 1ers choix (chaque bulletin a exactement un rang 1).
+        if ($this->election->vote_type->value === 'ranked') {
+            $query->where('vote_items.rank_position', 1);
+        }
+
+        return (int) $query->sum('vote_items.quantity');
     }
+
     /**
      * Calcul léger des scores en temps réel.
      * Intentionnellement simplifié — pas de pondération jury (trop lourd à chaque vote).
@@ -69,6 +79,10 @@ class LiveResultsUpdated implements ShouldBroadcast
     private function computeLiveScores(int $totalVotes): array
     {
         $voteType = $this->election->vote_type->value;
+
+        if ($voteType === 'ranked') {
+            return $this->computeLiveRankedScores($totalVotes);
+        }
 
         $rows = DB::table('vote_items')
             ->join('votes', 'vote_items.vote_id', '=', 'votes.id')
@@ -81,8 +95,6 @@ class LiveResultsUpdated implements ShouldBroadcast
                 'candidates.photo',
                 DB::raw('SUM(vote_items.quantity) as vote_count'),
                 DB::raw('AVG(vote_items.score) as avg_score'),
-                DB::raw('SUM(vote_items.weight) as total_weight'),
-                DB::raw('AVG(vote_items.rank_position) as avg_rank'),
             )
             ->groupBy(
                 'candidates.uuid',
@@ -93,10 +105,11 @@ class LiveResultsUpdated implements ShouldBroadcast
             ->get();
 
         return $rows->values()->map(function ($row, $index) use ($totalVotes, $voteType) {
+            // "weighted" n'a pas de score dédié en live : la pondération jury
+            // n'est appliquée qu'au calcul final (ResultService) — en live,
+            // seul le nombre de voix publiques compte, comme pour "single".
             $score = match ($voteType) {
                 'score'    => round((float) $row->avg_score, 2),
-                'weighted' => round((float) $row->total_weight, 2),
-                'ranked'   => round(10 - (float) $row->avg_rank, 2),
                 default    => (int) $row->vote_count,
             };
 
@@ -106,12 +119,6 @@ class LiveResultsUpdated implements ShouldBroadcast
 
             // rank = position dans la liste déjà triée par vote_count DESC
             $rank = $index + 1;
-            $rankLabel = match ($rank) {
-                1       => '1er',
-                2       => '2ème',
-                3       => '3ème',
-                default => $rank . 'ème',
-            };
 
             return [
                 'candidate_uuid' => $row->candidate_uuid,
@@ -121,20 +128,75 @@ class LiveResultsUpdated implements ShouldBroadcast
                 'score'          => $score,
                 'percentage'     => $percentage,
                 'rank'           => $rank,
-                'rank_label'     => $rankLabel,
+                'rank_label'     => $this->rankLabel($rank),
             ];
         })->toArray();
     }
 
+    /**
+     * Approximation live pour ranked : classement par nombre de 1ers choix
+     * uniquement (PAS un IRV complet — les transferts de voix ne sont
+     * calculés qu'à la clôture par IrvTabulationService). Le frontend doit
+     * afficher un badge "classement provisoire" pour ce vote_type.
+     */
+    private function computeLiveRankedScores(int $totalVotes): array
+    {
+        $rows = DB::table('vote_items')
+            ->join('votes', 'vote_items.vote_id', '=', 'votes.id')
+            ->join('candidates', 'vote_items.candidate_id', '=', 'candidates.id')
+            ->where('votes.election_id', $this->election->id)
+            ->where('votes.status', 'completed')
+            ->where('vote_items.rank_position', 1)
+            ->select(
+                'candidates.uuid as candidate_uuid',
+                'candidates.full_name',
+                'candidates.photo',
+                DB::raw('SUM(vote_items.quantity) as vote_count'),
+            )
+            ->groupBy('candidates.uuid', 'candidates.full_name', 'candidates.photo')
+            ->orderByDesc('vote_count')
+            ->get();
+
+        return $rows->values()->map(function ($row, $index) use ($totalVotes) {
+            $percentage = $totalVotes > 0
+                ? round(($row->vote_count / $totalVotes) * 100, 1)
+                : 0;
+            $rank = $index + 1;
+
+            return [
+                'candidate_uuid' => $row->candidate_uuid,
+                'full_name'      => $row->full_name,
+                'photo'          => $row->photo,
+                'vote_count'     => (int) $row->vote_count,
+                'score'          => $percentage,
+                'percentage'     => $percentage,
+                'rank'           => $rank,
+                'rank_label'     => $this->rankLabel($rank),
+            ];
+        })->toArray();
+    }
+
+    private function rankLabel(int $rank): string
+    {
+        return match ($rank) {
+            1       => '1er',
+            2       => '2ème',
+            3       => '3ème',
+            default => $rank . 'ème',
+        };
+    }
+
     public static function computeScores(Election $election): array
     {
-        $totalVotes = DB::table('votes')
-            ->where('election_id', $election->id)
-            ->where('status', 'completed')
-            ->count();
+        // Doit utiliser la même définition de "total" que broadcastWith()
+        // (somme de quantity, pas un COUNT de lignes votes) — sinon les votes
+        // payants achetés en bloc (quantity > 1) faussent le pourcentage
+        // (candidat à quantity=5 sur un total de 1 "vote" = 500%).
+        $instance = new self($election);
+        $totalVotes = $instance->sumTotalQuantity();
         return [
             'total_votes' => $totalVotes,
-            'scores' => (new self($election))->computeLiveScores($totalVotes),
+            'scores' => $instance->computeLiveScores($totalVotes),
         ];
     }
 }

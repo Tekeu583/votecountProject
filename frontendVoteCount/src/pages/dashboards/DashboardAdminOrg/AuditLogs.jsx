@@ -1,135 +1,83 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Download,
   Search,
-  Filter,
   RefreshCw,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
 import TextInput from '@components/ui/TextInput';
-import toast, { ToastBar } from 'react-hot-toast';
+import toast from 'react-hot-toast';
+import { FadeLoader } from 'react-spinners';
 import { useDebounce } from '@hooks/useDebounce';
+import { useOrg } from '@hooks/useOrg';
+import { auditApi } from '@services/api';
+
+const ACTION_OPTIONS = [
+  { value: '', label: 'Tous les types' },
+  { value: 'created', label: 'Créé' },
+  { value: 'updated', label: 'Modifié' },
+  { value: 'deleted', label: 'Supprimé' },
+  { value: 'restored', label: 'Restauré' },
+];
+
+const ACTION_COLORS = {
+  created: 'bg-green-100 text-green-700',
+  updated: 'bg-amber-100 text-amber-700',
+  deleted: 'bg-red-100 text-red-700',
+  restored: 'bg-blue-100 text-[var(--color-primary)]',
+};
 
 const AuditLogs = () => {
-  const [typeFilter, setTypeFilter] = useState('Tous');
+  const { org } = useOrg();
+  const [actionFilter, setActionFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 400);
   const [dateFilter, setDateFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
 
-  // Données d'exemple (tu pourras les remplacer par des données venant de ton API)
-  const logs = useMemo(() => [
-    {
-      id: 1,
-      date: '24/03/2026',
-      time: '14:32:05',
-      user: 'Muriel',
-      initials: 'ML',
-      color: 'bg-blue-100 text-[var(--color-primary)]',
-      action: 'Vote exprimé',
-      actionColor: 'bg-green-100 text-green-700',
-      details: 'Sondage ID: #3421 - "Budget 2026"',
-      ip: '192.168.1.45',
-    },
-    {
-      id: 2,
-      date: '24/03/2026',
-      time: '14:31:58',
-      user: 'Thomas Bernard',
-      initials: 'TB',
-      color: 'bg-orange-100 text-orange-700',
-      action: 'OTP envoyé',
-      actionColor: 'bg-amber-100 text-amber-700',
-      details: 'Authentification par SMS réussie',
-      ip: '82.124.56.12',
-    },
-    {
-      id: 3,
-      date: '24/03/2026',
-      time: '14:28:10',
-      user: 'tonny fokam',
-      initials: 'JD',
-      color: 'bg-cyan-100 text-cyan-700',
-      action: 'Connexion',
-      actionColor: 'bg-blue-100 text-[var(--color-primary)]',
-      details: 'Accès au tableau de bord admin',
-      ip: '176.12.89.201',
-    },
-    {
-      id: 4,
-      date: '24/03/2026',
-      time: '14:15:22',
-      user: 'Alice Morel',
-      initials: 'AM',
-      color: 'bg-red-100 text-red-700',
-      action: 'Export de données',
-      actionColor: 'bg-red-100 text-red-700',
-      details: 'Export liste des émargements (Excel)',
-      ip: '10.0.0.12',
-    },
-    {
-      id: 5,
-      date: '24/03/2026',
-      time: '13:55:00',
-      user: 'Paul Valery',
-      initials: 'PV',
-      color: 'bg-green-100 text-green-700',
-      action: 'Vote exprimé',
-      actionColor: 'bg-green-100 text-green-700',
-      details: 'Sondage ID: #3421 - "Budget 2026"',
-      ip: '194.5.12.33',
-    },
-  ], []);
+  const [loading, setLoading] = useState(true);
+  const [logs, setLogs] = useState([]);
+  const [meta, setMeta] = useState({ total: 0, last_page: 1 });
 
-  // Filtrage des logs
-  const filteredLogs = useMemo(() => {
-    return logs.filter(log => {
-      const matchesType = typeFilter === 'Tous' || log.action.toLowerCase().includes(typeFilter.toLowerCase());
-      const matchesSearch =
-        log.user.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.details.toLowerCase().includes(searchTerm.toLowerCase());
-      let matchesDate = true;
+  const loadLogs = useCallback(async () => {
+    if (!org?.uuid) return;
+    setLoading(true);
+    try {
+      const res = await auditApi.getAll({
+        organization_uuid: org.uuid,
+        action: actionFilter || undefined,
+        search: debouncedSearch || undefined,
+        date_from: dateFilter || undefined,
+        date_to: dateFilter || undefined,
+        page: currentPage,
+        per_page: 10,
+      });
+      setLogs(res.data?.data ?? []);
+      setMeta(res.data?.meta ?? { total: 0, last_page: 1 });
+    } catch {
+      toast.error('Erreur de chargement des journaux d\'audit');
+    } finally {
+      setLoading(false);
+    }
+  }, [org?.uuid, actionFilter, debouncedSearch, dateFilter, currentPage]);
 
-      if (dateFilter) {
-        try {
-          const selectedDate = new Date(dateFilter);
-          const [day, month, year] = log.date.split('/').map(Number);
-          const logDate = new Date(year, month - 1, day);
-          matchesDate =
-            selectedDate.getFullYear() === logDate.getFullYear() &&
-            selectedDate.getMonth() === logDate.getMonth() &&
-            selectedDate.getDate() === logDate.getDate();
-        } catch {
-          matchesDate = false;
-        }
-      }
+  useEffect(() => {
+    loadLogs();
+  }, [loadLogs]);
 
-      return matchesType && matchesSearch && matchesDate;
-    });
-  }, [typeFilter, searchTerm, dateFilter, logs]);
-
-  // Pagination
-  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
-  const paginatedLogs = filteredLogs.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  // Fonction d'export CSV réel
+  // Fonction d'export CSV — exporte la page actuellement affichée.
   const handleExportCSV = () => {
-    const headers = ['Date', 'Heure', 'Utilisateur', 'Action', 'Détails', 'Adresse IP'];
+    const headers = ['Date', 'Utilisateur', 'Action', 'Détails', 'Adresse IP'];
 
     const csvContent = [
       headers.join(','),
-      ...filteredLogs.map(log => [
-        `"${log.date}"`,
-        `"${log.time}"`,
-        `"${log.user}"`,
-        `"${log.action}"`,
-        `"${log.details}"`,
-        `"${log.ip}"`
+      ...logs.map(log => [
+        `"${new Date(log.created_at).toLocaleString('fr-FR')}"`,
+        `"${log.user?.name ?? '—'}"`,
+        `"${log.action_label}"`,
+        `"${log.entity_label} #${log.entity_id}"`,
+        `"${log.ip_address ?? ''}"`
       ].join(','))
     ].join('\n');
 
@@ -140,12 +88,11 @@ const AuditLogs = () => {
     link.download = `Audit_Log_${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
-    toast.success('telecharger avec success')
+    toast.success('Export téléchargé avec succès');
   };
 
-  // Réinitialiser les filtres
   const resetFilters = () => {
-    setTypeFilter('Tous');
+    setActionFilter('');
     setSearchTerm('');
     setDateFilter('');
     setCurrentPage(1);
@@ -166,7 +113,8 @@ const AuditLogs = () => {
 
         <button
           onClick={handleExportCSV}
-          className="flex items-center justify-center gap-2 bg-[var(--color-white)] border border-[var(--color-gray-light)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] px-4 py-2 rounded-[var(--radius-md)] font-medium transition-colors w-full sm:w-auto"
+          disabled={logs.length === 0}
+          className="flex items-center justify-center gap-2 bg-[var(--color-white)] border border-[var(--color-gray-light)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] px-4 py-2 rounded-[var(--radius-md)] font-medium transition-colors w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Download size={16} />
           Exporter CSV
@@ -181,29 +129,25 @@ const AuditLogs = () => {
             <label htmlFor='type' className="block text-sm font-medium text-[var(--color-gray)] mb-2">TYPE D'ACTIVITÉ</label>
             <select
               id='type'
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
+              value={actionFilter}
+              onChange={(e) => { setActionFilter(e.target.value); setCurrentPage(1); }}
               className="w-full border border-[var(--color-gray-light)] rounded-[var(--radius-md)] px-4 py-3 focus:outline-none focus:border-[var(--color-primary)]"
             >
-              <option value="Tous">Tous les types</option>
-              <option value="Vote">Vote exprimé</option>
-              <option value="Connexion">Connexion</option>
-              <option value="OTP">OTP envoyé</option>
-              <option value="Export">Export de données</option>
+              {ACTION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
 
-          {/* Recherche Utilisateur */}
+          {/* Recherche */}
           <div>
-            <label htmlFor='name' className="block text-sm font-medium text-[var(--color-gray)] mb-2">UTILISATEUR</label>
+            <label htmlFor='name' className="block text-sm font-medium text-[var(--color-gray)] mb-2">RECHERCHE</label>
             <div className="relative">
               <TextInput
                 id='name'
                 type="text"
-                placeholder="Nom ou Email"
+                placeholder="Action ou type de ressource..."
                 iconLeft={Search}
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                 className="w-full pl-11 pr-4 py-3 border border-[var(--color-gray-light)] rounded-[var(--radius-md)] focus:outline-none focus:border-[var(--color-primary)]"
               />
             </div>
@@ -211,13 +155,12 @@ const AuditLogs = () => {
 
           {/* Période */}
           <div>
-            <label htmlFor='date' className="block text-sm font-medium text-[var(--color-gray)] mb-2">PÉRIODE</label>
+            <label htmlFor='date' className="block text-sm font-medium text-[var(--color-gray)] mb-2">DATE</label>
             <TextInput
               id='date'
               type="date"
-              placeholder="dd/mm/yyyy"
               value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
+              onChange={(e) => { setDateFilter(e.target.value); setCurrentPage(1); }}
               className="w-full border border-[var(--color-gray-light)] rounded-[var(--radius-md)] px-4 py-3 focus:outline-none focus:border-[var(--color-primary)]"
             />
           </div>
@@ -243,40 +186,39 @@ const AuditLogs = () => {
               <th className="text-left py-2 px-2 font-medium text-[var(--color-dark)]">DATE & HEURE</th>
               <th className="text-left py-2 px-2 font-medium text-[var(--color-dark)]">UTILISATEUR</th>
               <th className="text-left py-2 px-2 font-medium text-[var(--color-dark)]">ACTION / TYPE</th>
-              <th className="text-left py-2 px-2 font-medium text-[var(--color-dark)]">DÉTAILS DE L'ACTIVITÉ</th>
+              <th className="text-left py-2 px-2 font-medium text-[var(--color-dark)]">RESSOURCE</th>
               <th className="text-left py-2 px-2 font-medium text-[var(--color-dark)]">ADRESSE IP</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--color-gray-light)]">
-            {paginatedLogs.map((log) => (
-              <tr key={log.id} className="hover:bg-[var(--color-gray-light)] transition-colors">
+            {loading ? (
+              <tr><td colSpan={5} className="text-center py-10"><FadeLoader color="#1e40af" cssOverride={{ display: 'inline-block' }} /></td></tr>
+            ) : logs.length === 0 ? (
+              <tr><td colSpan={5} className="text-center py-10 text-[var(--color-gray)]">Aucun journal trouvé</td></tr>
+            ) : logs.map((log) => (
+              <tr key={log.uuid} className="hover:bg-[var(--color-gray-light)] transition-colors">
                 <td className="px-4 py-2">
-                  <div>
-                    <p className="font-medium whitespace-nowrap">{log.date}</p>
-                    <p className="text-sm text-[var(--color-gray)]">{log.time}</p>
-                  </div>
+                  <p className="font-medium whitespace-nowrap">{new Date(log.created_at).toLocaleString('fr-FR')}</p>
                 </td>
 
                 <td className="px-4 py-2">
                   <div className="flex items-center gap-3">
-                    <div className={`w-9 h-9 flex items-center justify-center rounded-full text-sm font-semibold ${log.color}`}>
-                      {log.initials}
+                    <div className="w-9 h-9 flex items-center justify-center rounded-full text-sm font-semibold bg-blue-100 text-[var(--color-primary)]">
+                      {log.user?.initials ?? '—'}
                     </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{log.user}</p>
-                    </div>
+                    <p className="font-medium text-gray-900">{log.user?.name ?? 'Système'}</p>
                   </div>
                 </td>
 
                 <td className="px-4 py-2">
-                  <span className={`inline-flex px-4 py-1.5 text-xs font-medium rounded-full whitespace-nowrap ${log.actionColor}`}>
-                    {log.action}
+                  <span className={`inline-flex px-4 py-1.5 text-xs font-medium rounded-full whitespace-nowrap ${ACTION_COLORS[log.action] ?? 'bg-gray-100 text-gray-700'}`}>
+                    {log.action_label}
                   </span>
                 </td>
 
-                <td className="px-4 py-2 text-[var(--color-gray)] text-sm">{log.details}</td>
+                <td className="px-4 py-2 text-[var(--color-gray)] text-sm">{log.entity_label} #{log.entity_id}</td>
 
-                <td className="px-4 py-2 font-mono text-sm text-[var(--color-gray)] whitespace-nowrap">{log.ip}</td>
+                <td className="px-4 py-2 font-mono text-sm text-[var(--color-gray)] whitespace-nowrap">{log.ip_address ?? '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -286,7 +228,7 @@ const AuditLogs = () => {
       {/* Pagination */}
       <div className="px-8 py-5 border-t border-t-[var(--color-gray-light)] bg-[var(--color-white)] flex items-center justify-between overflow-hidden w-full">
         <p className="text-sm text-[var(--color-gray)] whitespace-nowrapl">
-          Affichage de 1 à {paginatedLogs.length} sur {filteredLogs.length} résultats
+          {meta.total} résultat{meta.total > 1 ? 's' : ''}
         </p>
 
         <div className="flex items-center gap-2">
@@ -298,22 +240,13 @@ const AuditLogs = () => {
             <ChevronLeft className="w-4 h-4" />
           </button>
 
-          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrentPage(i + 1)}
-              className={`px-4 py-2 rounded-[var(--radius-md)] font-medium ${currentPage === i + 1
-                ? 'bg-[var(--color-primary)] text-[var(--color-white)]'
-                : 'border border-[var(--color-gray-light)] hover:bg-[var(--color-gray-light)]'
-                }`}
-            >
-              {i + 1}
-            </button>
-          ))}
+          <span className="px-4 py-2 rounded-[var(--radius-md)] font-medium bg-[var(--color-primary)] text-[var(--color-white)]">
+            {currentPage} / {meta.last_page || 1}
+          </span>
 
           <button
-            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, meta.last_page || 1))}
+            disabled={currentPage >= (meta.last_page || 1)}
             className="px-4 py-2 border border-[var(--color-gray-light)] rounded-[var(--radius-md)] hover:bg-[var(--color-gray-light)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
           >
             <ChevronRight className="w-4 h-4" />

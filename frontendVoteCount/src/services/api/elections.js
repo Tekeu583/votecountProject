@@ -21,7 +21,13 @@ export const electionsApi = {
     create: (data) => api.post(`${V1}/elections`, data),
 
     // Mettre à jour
-    update: (uuid, data) => api.put(`${V1}/elections/${uuid}`, data),
+    update: (uuid, data) => {
+        if (data instanceof FormData) {
+            data.append('_method', 'PUT');
+            return api.post(`${V1}/elections/${uuid}`, data);
+        }
+        return api.put(`${V1}/elections/${uuid}`, data);
+    },
 
     // Draft wizard
     // Créer un brouillon
@@ -42,6 +48,12 @@ export const electionsApi = {
     createCategory: (uuid, data) => api.post(`${V1}/elections/${uuid}/create-categories`, data),
     // Supprimer une catégorie
     deleteCategory: (uuid, catUuid) => api.delete(`${V1}/elections/${uuid}/categories/${catUuid}`),
+
+    // Élection + ses catégories (chacune avec son banner et ses candidats approuvés) - public
+    getElectionWithCategories: (uuid) => api.get(`${V1}/elections/${uuid}/with-categories`),
+    // Détails d'une catégorie (banner + candidats approuvés) - public
+    getCategoryDetails: (electionUuid, categoryUuid) =>
+        api.get(`${V1}/elections/${electionUuid}/categories/${categoryUuid}`),
 
     // Supprimer
     delete: (uuid) => api.delete(`${V1}/elections/${uuid}`),

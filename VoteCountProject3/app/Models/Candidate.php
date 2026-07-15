@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CandidateAccountLinkService;
 use App\Traits\HasAudit;
 use App\Traits\HasSoftDeletesWithUser;
 use App\Traits\HasUuid;
@@ -267,6 +268,33 @@ class Candidate extends Model
                     throw new \Exception('La catégorie n\'est pas associée à cette élection');
                 }
             }
+        });
+
+        // Lie automatiquement le candidat à un compte VoteCount existant
+        // (recherche par email) — couvre l'ajout manuel, l'import CSV et
+        // l'approbation de candidature, tous passent par Candidate::create().
+        static::created(function (Candidate $candidate) {
+            CandidateAccountLinkService::linkIfAccountExists($candidate);
+        });
+
+        // Symétrique de created() ci-dessus : sans ça, supprimer un candidat
+        // laisse le rôle election_user (role_slug='candidat') orphelin — le
+        // compte reste bloqué "déjà affecté à cette élection" et ne peut plus
+        // recevoir aucun autre rôle (jury/manager/observer), alors même que
+        // sa candidature n'existe plus.
+        static::deleted(function (Candidate $candidate) {
+            CandidateAccountLinkService::unlink($candidate);
+        });
+
+        static::forceDeleted(function (Candidate $candidate) {
+            CandidateAccountLinkService::unlink($candidate);
+        });
+
+        // Si le candidat est restauré depuis la corbeille, relier à nouveau
+        // — restore() ne déclenche pas created(), donc sans ce hook le
+        // compte ne retrouverait pas son rôle "candidat" sur l'élection.
+        static::restored(function (Candidate $candidate) {
+            CandidateAccountLinkService::relinkAfterRestore($candidate);
         });
     }
 

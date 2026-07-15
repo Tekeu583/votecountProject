@@ -2,6 +2,9 @@
 import api, { V1 } from './api';
 
 export const candidatesApi = {
+    // Mes candidatures (utilisateur connecté, toutes élections)
+    getMine: () => api.get(`${V1}/candidates/mine`),
+
     // Liste des candidats
     getAll: (electionUuid, params = {}) => api.get(`${V1}/elections/${electionUuid}/candidates`, { params }),
 

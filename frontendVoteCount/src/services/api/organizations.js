@@ -62,17 +62,33 @@ export const organizationsApi = {
         api.delete(`${V1}/organizations/${orgUuid}`),
 
     /**
-     * POST /api/v1/organizations/{organization}/users
-     * Ajoute un utilisateur à l'organisation.
-     * @param {string} orgUuid
-     * @param {string} userId
-     * @param {string} role - Rôle de l'utilisateur dans l'organisation
+     * GET /api/v1/organizations/{organization}/users
+     * Liste les membres de l'organisation (uuid, full_name, email, avatar,
+     * role_slug, status, joined_at).
      */
-    addUser: (orgUuid, userId, role) =>
+    listUsers: (orgUuid) =>
+        api.get(`${V1}/organizations/${orgUuid}/users`),
+
+    /**
+     * POST /api/v1/organizations/{organization}/users
+     * Ajoute un utilisateur à l'organisation — recherché par email, doit
+     * déjà posséder un compte VoteCount.
+     * @param {string} orgUuid
+     * @param {string} email
+     * @param {string} role - 'admin' | 'member' | 'viewer'
+     */
+    addUser: (orgUuid, email, role) =>
         api.post(`${V1}/organizations/${orgUuid}/users`, {
-            user_id: userId,
+            email,
             role,
         }),
+
+    /**
+     * PATCH /api/v1/organizations/{organization}/users/{user}
+     * Change le rôle d'un membre déjà présent (le owner ne peut pas être modifié).
+     */
+    updateUserRole: (orgUuid, userUuid, role) =>
+        api.patch(`${V1}/organizations/${orgUuid}/users/${userUuid}`, { role }),
 
     /**
      * DELETE /api/v1/organizations/{organization}/users/{user}

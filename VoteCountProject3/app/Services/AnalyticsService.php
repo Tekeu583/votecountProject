@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Election;
 use App\Models\Organization;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -26,7 +27,9 @@ class AnalyticsService
                 return [
                     'vote_uuid' => $item->uuid,
                     'election_title' => $item->title,
-                    'timestamp' => $item->created_at->toIso8601String(),
+                    // DB::table() (query builder brut, pas Eloquent) renvoie
+                    // created_at en chaîne, pas en Carbon — pas de $casts ici.
+                    'timestamp' => Carbon::parse($item->created_at)->toIso8601String(),
                 ];
             })->toArray();
     }

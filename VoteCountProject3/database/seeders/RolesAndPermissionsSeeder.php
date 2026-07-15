@@ -194,7 +194,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'view security alerts',
             'manage categories',
             'view categories',
-            'view subscription plans'
+            'view subscription plans',
+            'view audit logs',
         ]);
 
         // Election Manager role
@@ -229,6 +230,16 @@ class RolesAndPermissionsSeeder extends Seeder
         $observer = Role::firstOrCreate(['name' => 'observer', 'guard_name' => 'web']);
         $observer->givePermissionTo([
             'view elections',
+            'view results',
+        ]);
+
+        // Candidat role — assigné automatiquement (CandidateAccountLinkService)
+        // dès qu'un candidat créé/approuvé correspond par email à un compte
+        // existant, ou rétroactivement à l'inscription si le compte est créé après.
+        $candidat = Role::firstOrCreate(['name' => 'candidat', 'guard_name' => 'web']);
+        $candidat->givePermissionTo([
+            'view elections',
+            'view candidates',
             'view results',
         ]);
 

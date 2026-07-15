@@ -21,7 +21,7 @@ class SubmitPublicVoteRequest extends FormRequest
             'multiple' => $election->max_choices ?? 50,
             'ranked'   => $election->candidates()->approved()->count(),
             'score'    => $election->candidates()->approved()->count(),
-            'weighted' => $election->candidates()->approved()->count(),
+            'weighted' => 1,
             default    => 1,
         };
 
@@ -65,7 +65,7 @@ class SubmitPublicVoteRequest extends FormRequest
             ],
 
             'items.*.amount' => [
-                'sometimes',
+                Rule::requiredIf(fn() => $election?->vote_type?->value === 'multiple'),
                 'nullable',
                 'numeric',
                 'min:0.01',
@@ -77,6 +77,36 @@ class SubmitPublicVoteRequest extends FormRequest
                 'unique:votes,idempotency_key',
             ],
         ];
+    }
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator) {
+            $election = $this->route('election');
+            if (($election?->vote_type?->value ?? null) !== 'ranked') {
+                return;
+            }
+
+            $items = $this->input('items', []);
+            $ranks = collect($items)
+                ->pluck('rank_position')
+                ->filter(fn ($r) => $r !== null && $r !== '')
+                ->map(fn ($r) => (int) $r);
+
+            // Un rank_position manquant est déjà signalé par la règle "required" ci-dessus.
+            if ($ranks->count() !== count($items)) {
+                return;
+            }
+
+            if ($ranks->unique()->count() !== $ranks->count()) {
+                $validator->errors()->add('items', 'Chaque position de classement doit être unique (pas de doublon).');
+                return;
+            }
+
+            if ($ranks->sort()->values()->all() !== range(1, $ranks->count())) {
+                $validator->errors()->add('items', 'Le classement doit être une séquence continue commençant à 1, sans trou.');
+            }
+        });
     }
 
     public function messages(): array
@@ -92,6 +122,8 @@ class SubmitPublicVoteRequest extends FormRequest
             'items.*.score.required'         => 'Le score est requis pour ce type de vote.',
             'items.*.score.min'              => 'Le score doit être entre 0 et 10.',
             'items.*.score.max'              => 'Le score doit être entre 0 et 10.',
+            'items.*.amount.required'        => 'Vous devez indiquer un montant pour chaque candidat sélectionné.',
+            'items.*.amount.min'              => 'Le montant doit être supérieur à 0.',
             'idempotency_key.required'       => 'La clé d\'idempotence est requise.',
             'idempotency_key.unique'         => 'Ce vote a déjà été soumis.',
         ];

@@ -13,7 +13,7 @@ import { useOrg } from '@hooks/useOrg';
 import { FadeLoader } from 'react-spinners';
 import ElecteursModal from './ElecteursModal';
 
-// ── Badge statut vote ─────────────────────────────────────────────
+// --- Badge statut vote ----------------------─
 const VoteBadge = ({ hasVoted }) => (
   hasVoted
     ? <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700">
@@ -39,7 +39,7 @@ const PER_PAGE = 15;
 const Electeurs = () => {
   const { org } = useOrg();
 
-  // ── États ────────────────────────────────────────────────────
+  // --- États -------------------------------------
   const [electors, setElectors] = useState([]);
   const [elections, setElections] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -67,7 +67,7 @@ const Electeurs = () => {
   const [sendingCodes, setSendingCodes] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
-  // ── Chargement des élections de l'org (pour le filtre select) ─
+  // --- Chargement des élections de l'org (pour le filtre select) ─
   useEffect(() => {
     if (!org?.uuid) return;
     setLoadingElec(true);
@@ -78,7 +78,7 @@ const Electeurs = () => {
       .finally(() => setLoadingElec(false));
   }, [org?.uuid]);
 
-  // ── Chargement des électeurs ──────────────────────────────────
+  // --- Chargement des électeurs -------------------
   // Une seule requête paginée côté serveur.
   // Si aucune élection sélectionnée, boucle sur toutes (même pattern que Candidats).
   const loadElectors = useCallback(async (p = 1) => {
@@ -149,7 +149,7 @@ const Electeurs = () => {
     loadElectors(page);
   }, [page]);
 
-  // ── Sélection ────────────────────────────────────────────────
+  // --- Sélection -----------------------------------
   const toggleSelect = (uuid) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
@@ -166,7 +166,7 @@ const Electeurs = () => {
     }
   };
 
-  // ── Envoi des voter_code ────────────────────────────────────
+  // --- Envoi des voter_code ------------------
   // Si des électeurs sont sélectionnés → envoi ciblé.
   // Sinon → envoi à TOUS les électeurs actifs de l'élection.
   const handleSendVoterCodes = async () => {
@@ -225,7 +225,7 @@ const Electeurs = () => {
     }
   };
 
-  // ── Actions ──────────────────────────────────────────────────
+  // --- Actions --------------------------------------
   const handleDelete = async (elector) => {
     if (!window.confirm(`Supprimer ${elector.full_name} ?`)) return;
     try {
@@ -268,7 +268,7 @@ const Electeurs = () => {
     setPage(1);
   };
 
-  // ── Rendu ─────────────────────────────────────────────────────
+  // --- Rendu -------------------------------------─
   return (
     <div className="bg-[var(--color-background-white)] p-2">
 

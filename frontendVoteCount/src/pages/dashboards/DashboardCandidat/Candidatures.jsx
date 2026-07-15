@@ -1,30 +1,51 @@
+import { useState, useEffect, useMemo } from "react";
 import CandidatureTable from "@components/dashboard/CandidatureTable";
 import { FileText } from "lucide-react";
+import toast from "react-hot-toast";
+import { candidatesApi } from "@services/api";
+import { FadeLoader } from "react-spinners";
+
+const STATUS_LABELS = {
+    pending: 'EN ATTENTE',
+    approved: 'ACCEPTÉ',
+    rejected: 'REJETÉ',
+};
 
 export default function Candidatures() {
-    // 👉 Simule API (remplacer avec Axios)
-    const candidatures = [
-        {
-            id: 1,
-            election: "Élection Présidentielle Universitaire",
-            status: "ACCEPTÉ",
-        },
-        {
-            id: 2,
-            election: "Vote Délégué Faculté",
-            status: "EN ATTENTE",
-        },
-        {
-            id: 3,
-            election: "Élection Club Informatique",
-            status: "REJETÉ",
-        },
-        {
-            id: 4,
-            election: "Élection Association Étudiante",
-            status: "BLOQUÉ",
-        },
-    ];
+    const [candidacies, setCandidacies] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                const res = await candidatesApi.getMine();
+                setCandidacies(res.data?.data ?? []);
+            } catch {
+                toast.error('Impossible de charger vos candidatures.');
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, []);
+
+    const candidatures = useMemo(() => candidacies
+        .filter((c) => c.election)
+        .map((c) => ({
+            id: c.uuid,
+            election: c.election.title,
+            electionUuid: c.election.uuid,
+            status: STATUS_LABELS[c.status] ?? 'EN ATTENTE',
+        })), [candidacies]);
+
+    if (loading) {
+        return (
+            <div className="h-[calc(100vh-68px)] flex items-center justify-center">
+                <FadeLoader color="#1e40af" cssOverride={{ display: 'block', margin: '0 auto' }} />
+            </div>
+        );
+    }
 
     return (
         <div className="p-6 bg-gray-100 space-y-6">

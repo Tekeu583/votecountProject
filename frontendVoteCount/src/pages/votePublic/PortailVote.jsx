@@ -1,59 +1,22 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, ChevronLeft, Wifi, WifiOff } from 'lucide-react';
+import { Search, ChevronLeft, Wifi, WifiOff, BarChart3, LayoutGrid } from 'lucide-react';
 import toast from 'react-hot-toast';
 import TextInput from '@components/ui/TextInput';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import CandidateCard from '@components/CandidatCard';
-import { electionsApi, votesApi } from '@services/api';
+import RankedBallotForm from '@components/RankedBallotForm';
+import MultipleBallotForm from '@components/MultipleBallotForm';
+import { electionsApi, votesApi, resultsApi } from '@services/api';
 import { FadeLoader } from 'react-spinners';
 
 import { useLiveResults } from '@hooks/useLiveResults';
 import { useDebounce } from '@hooks/useDebounce';
 
-// ── Barre de résultats live — classement en temps réel ────────────
-// Affiche les barres de progression de chaque candidat,
-// triées par score décroissant. Mise à jour à chaque broadcast.
-const LiveResultsBar = ({ scores, totalVotes }) => {
-    if (!scores || scores.length === 0) return null;
-
-    return (
-        <div className="bg-white border border-[var(--color-gray-light)] rounded-[var(--radius-lg)] p-5 mb-8 shadow-sm">
-            <div className="flex items-center gap-2 mb-4">
-                <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-sm font-semibold text-[var(--color-dark)]">
-                    Résultats en direct — {totalVotes} vote{totalVotes > 1 ? 's' : ''}
-                </span>
-            </div>
-            <div className="space-y-3">
-                {scores.map((s, idx) => (
-                    <div key={s.candidate_uuid} className="flex items-center gap-3">
-                        {/* Rang */}
-                        <span className={`text-xs font-bold w-6 text-center shrink-0 ${idx === 0 ? 'text-yellow-500' :
-                            idx === 1 ? 'text-gray-400' :
-                                idx === 2 ? 'text-amber-600' : 'text-gray-400'
-                            }`}>
-                            {s.rank_label ?? `${idx + 1}`}
-                        </span>
-                        {/* Nom */}
-                        <span className="text-xs text-[var(--color-gray)] w-32 truncate shrink-0">
-                            {s.full_name}
-                        </span>
-                        {/* Barre */}
-                        <div className="flex-1 h-2 bg-[var(--color-gray-light)] rounded-full overflow-hidden">
-                            <div
-                                className="h-full bg-[var(--color-primary)] rounded-full transition-all duration-700"
-                                style={{ width: `${s.percentage}%` }}
-                            />
-                        </div>
-                        {/* Pourcentage + votes */}
-                        <span className="text-xs font-semibold text-[var(--color-dark)] w-20 text-right shrink-0">
-                            {s.percentage}% ({s.vote_count})
-                        </span>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
+const rankLabel = (rank) => {
+    if (rank === 1) return '1er';
+    if (rank === 2) return '2ème';
+    if (rank === 3) return '3ème';
+    return `${rank}ème`;
 };
 
 // ── Page principale ───────────────────────────────────────────────
@@ -90,24 +53,61 @@ const PortailVote = () => {
 
     const electionData = election.data;
     const isOngoing = electionData?.status === 'ongoing';
-    const showResults = electionData?.real_time_results === true && isOngoing;
+    const isClosed = ['closed', 'completed'].includes(electionData?.status);
+    // Gate du socket WebSocket uniquement (mises à jour à chaque vote).
+    const liveEnabled = electionData?.real_time_results === true && isOngoing;
+    // Gate d'affichage voix/rang sur la carte — indépendant du statut, pour
+    // tous les types de vote : reste vrai même après la clôture de l'élection.
+    const canShowResults = electionData?.public_results === true;
 
     const { liveScores, connected } = useLiveResults(
         electionData?.id,
-        showResults
+        liveEnabled,
+        electionData?.live_scores
     );
 
-    // À chaque broadcast, on met à jour rank, rank_label et statistics.vote_count
-    // de chaque candidat sans recharger toute la page.
-    const candidatesWithLiveRank = useCallback(() => {
-        const candidates = electionData?.candidates ?? [];
-        if (!liveScores?.scores?.length) return candidates;
+    // Une fois l'élection clôturée, les voix/rang affichés doivent venir du
+    // vrai dépouillement final (IRV compris pour ranked), pas de
+    // l'approximation live — sinon "provisoire" resterait affiché à tort.
+    const [finalScores, setFinalScores] = useState(null);
+    useEffect(() => {
+        if (!isClosed || !electionData?.uuid) {
+            setFinalScores(null);
+            return;
+        }
+        resultsApi.final(electionData.uuid)
+            .then(res => setFinalScores(res.data?.data?.results ?? null))
+            .catch(() => setFinalScores(null));
+    }, [isClosed, electionData?.uuid]);
 
-        // Map uuid → score live reçu
+    // Fusionne rank/rank_label/vote_count dans chaque candidat, depuis les
+    // résultats finaux (élection clôturée) ou live (élection en cours).
+    const candidatesWithResults = useCallback(() => {
+        const candidates = electionData?.candidates ?? [];
+
+        if (isClosed) {
+            if (!finalScores?.length) return candidates;
+            const scoreMap = Object.fromEntries(
+                finalScores.map((s, idx) => [s.candidate_uuid, { ...s, rank: idx + 1 }])
+            );
+            return candidates
+                .map(c => {
+                    const final = scoreMap[c.uuid];
+                    if (!final) return c;
+                    return {
+                        ...c,
+                        rank: final.rank,
+                        rank_label: rankLabel(final.rank),
+                        statistics: { ...c.statistics, vote_count: final.total_votes },
+                    };
+                })
+                .sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999));
+        }
+
+        if (!liveScores?.scores?.length) return candidates;
         const scoreMap = Object.fromEntries(
             liveScores.scores.map(s => [s.candidate_uuid, s])
         );
-
         return candidates
             .map(c => {
                 const live = scoreMap[c.uuid];
@@ -123,7 +123,7 @@ const PortailVote = () => {
                 };
             })
             .sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999));
-    }, [electionData?.candidates, liveScores]);
+    }, [electionData?.candidates, liveScores, isClosed, finalScores]);
 
     const handleVote = (electionUuid, candidate) => {
         const electionMode = electionData?.election_mode;
@@ -184,6 +184,45 @@ const PortailVote = () => {
         }
     };
 
+    const submitRankedVote = async (items) => {
+        try {
+            setVoting(true);
+            await votesApi.submitPublic(electionUuid, {
+                items,
+                idempotency_key: crypto.randomUUID(),
+            });
+            toast.success('Votre classement a été enregistré !');
+            navigate(`/vote/success/${electionUuid}`, {
+                state: { electionTitle: electionData.title, electionUuid: electionUuid },
+            });
+        } catch (error) {
+            const message = error.response?.data?.message ?? 'Erreur lors du vote. Veuillez réessayer.';
+            toast.error(message);
+        } finally {
+            setVoting(false);
+        }
+    };
+
+    // Vote multiple : toujours payant, aucun vote n'est créé ici — on
+    // transmet juste la sélection (candidat + montant par candidat) à la
+    // page de paiement, qui créera le vote au moment de payer (même
+    // principe que le vote payant single, cf. VotePayment.jsx).
+    const continueMultipleToPayment = (items) => {
+        navigate(`/vote/payement-multiple/${electionUuid}`, {
+            state: {
+                election: {
+                    uuid: electionData.uuid,
+                    title: electionData.title,
+                    payment_type: electionData.payment_type,
+                    vote_price: electionData.vote_price,
+                    currency: electionData.currency,
+                    vote_type: electionData.vote_type,
+                },
+                candidates: items,
+            },
+        });
+    };
+
     const viewCandidateDetails = (electionUuid, candidate) => {
         navigate(`/details/candidat/election/${electionUuid}/candidate/${candidate.uuid}`, {
             state: {
@@ -193,7 +232,7 @@ const PortailVote = () => {
     };
 
     // Filtrage par recherche
-    const filteredCandidates = candidatesWithLiveRank().filter(c =>
+    const filteredCandidates = candidatesWithResults().filter(c =>
         !searchTerm || c.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -235,7 +274,7 @@ const PortailVote = () => {
                                 {electionData.description}
                             </p>
                             {/* Indicateur connexion live */}
-                            {showResults && (
+                            {liveEnabled && (
                                 <div className={`mt-4 inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-full font-medium ${connected ? 'bg-green-500/20 text-green-300' : 'bg-gray-500/20 text-gray-300'
                                     }`}>
                                     {connected
@@ -248,46 +287,81 @@ const PortailVote = () => {
                     </div>
                 </div>
 
-                {showResults && liveScores && (
-                    <LiveResultsBar
-                        scores={liveScores.scores}
-                        totalVotes={liveScores.total_votes}
-                    />
-                )}
-
                 {/* Section candidats */}
-                <div className="flex justify-between items-center mb-8">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
                     <div>
                         <h2 className="text-3xl font-bold text-gray-900">Candidates en Compétition</h2>
                         <p className="text-gray-600 mt-1">
                             {filteredCandidates.length} candidat{filteredCandidates.length > 1 ? 's' : ''}
-                            {showResults && liveScores ? ' — classement en temps réel' : ''}
+                            {liveEnabled && liveScores ? ' — classement en temps réel' : ''}
+                            {isClosed && finalScores ? ' — résultats définitifs' : ''}
                         </p>
                     </div>
-                    <div className="relative w-80">
-                        <TextInput
-                            iconLeft={Search}
-                            placeholder="Rechercher un candidat..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        {electionData?.has_categories === true && (
+                            <Link
+                                to={`/elections/${electionUuid}/categories`}
+                                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-[var(--radius-md)] border border-[var(--color-primary)] text-[var(--color-primary)] font-semibold text-sm hover:bg-[var(--color-primary)]/5 transition-colors shrink-0"
+                            >
+                                <LayoutGrid size={16} /> Voir par catégorie
+                            </Link>
+                        )}
+                        {electionData?.public_results === true && (
+                            <Link
+                                to={`/elections/${electionUuid}/results`}
+                                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-[var(--radius-md)] border border-[var(--color-primary)] text-[var(--color-primary)] font-semibold text-sm hover:bg-[var(--color-primary)]/5 transition-colors shrink-0"
+                            >
+                                <BarChart3 size={16} /> Voir les résultats
+                            </Link>
+                        )}
+                        <div className="relative w-full sm:w-64 lg:w-80">
+                            <TextInput
+                                iconLeft={Search}
+                                placeholder="Rechercher un candidat..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
                     </div>
                 </div>
 
-                {/* Grid des candidats — triés par rang si live actif */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {filteredCandidates.map((candidate) => (
-                        <CandidateCard
-                            key={candidate.uuid}
-                            candidate={candidate}
-                            electionUuid={electionUuid}
-                            isSelected={selectedCandidateId === candidate.uuid}
-                            onVote={handleVote}
-                            viewCandidateDetails={viewCandidateDetails}
-                            showResults={showResults}
+                {/* Grid des candidats — triés par rang si live actif — ou bulletin dédié pour ranked/multiple */}
+                {electionData?.vote_type === 'ranked' ? (
+                    electionData?.payment_type === 'free' ? (
+                        <RankedBallotForm
+                            candidates={filteredCandidates}
+                            submitting={voting}
+                            onSubmit={submitRankedVote}
+                            showResults={canShowResults}
                         />
-                    ))}
-                </div>
+                    ) : (
+                        <div className="text-center text-gray-500 py-12 bg-white border border-[var(--color-gray-light)] rounded-[var(--radius-lg)]">
+                            Le vote par classement payant n'est pas encore disponible.
+                        </div>
+                    )
+                ) : electionData?.vote_type === 'multiple' ? (
+                    <MultipleBallotForm
+                        candidates={filteredCandidates}
+                        votePrice={electionData?.vote_price}
+                        currency={electionData?.currency}
+                        onContinue={continueMultipleToPayment}
+                        showResults={canShowResults}
+                    />
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {filteredCandidates.map((candidate) => (
+                            <CandidateCard
+                                key={candidate.uuid}
+                                candidate={candidate}
+                                electionUuid={electionUuid}
+                                isSelected={selectedCandidateId === candidate.uuid}
+                                onVote={handleVote}
+                                viewCandidateDetails={viewCandidateDetails}
+                                showResults={canShowResults}
+                            />
+                        ))}
+                    </div>
+                )}
 
             </div>
         </div>

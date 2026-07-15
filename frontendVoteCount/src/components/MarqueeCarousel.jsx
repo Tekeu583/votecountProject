@@ -5,6 +5,7 @@ import {
     ChevronLeft,
     ChevronRight,
     ArrowRight,
+    ListChecks,
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ClipLoader } from 'react-spinners';
@@ -26,7 +27,7 @@ export default function MarqueeCarousel() {
         },
         [
             AutoScroll({
-                speed: 1.2, startDelay: 0, playOnInit: true, stopOnInteraction: false, stopOnMouseEnter: true,
+                speed: 1.2, startDelay: 0, playOnInit: true, stopOnInteraction: true, stopOnMouseEnter: true,
             }),
         ]
     );
@@ -56,12 +57,10 @@ export default function MarqueeCarousel() {
     }, []);
 
     const scrollPrev = useCallback(() => {
-        console.log(emblaApi);
         emblaApi?.scrollPrev();
     }, [emblaApi]);
 
     const scrollNext = useCallback(() => {
-        console.log(emblaApi);
         emblaApi?.scrollNext();
     }, [emblaApi]);
 
@@ -148,7 +147,15 @@ export default function MarqueeCarousel() {
                             </article>
                         </div>
                     ))}
-                    <Link to="#" >voir plus</Link>
+                    <div className="min-w-[280px] sm:min-w-[320px] lg:min-w-[360px] px-3">
+                        <Link
+                            to="/elections/open-for-candidacy"
+                            className="h-52 flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[var(--color-primary)]/40 text-[var(--color-primary)] transition-all duration-300 hover:-translate-y-2 hover:border-[var(--color-primary)] hover:bg-[var(--color-primary)]/5"
+                        >
+                            <ListChecks size={28} />
+                            <span className="font-semibold">Voir toutes les élections</span>
+                        </Link>
+                    </div>
                 </div>
             </div>
         </section>

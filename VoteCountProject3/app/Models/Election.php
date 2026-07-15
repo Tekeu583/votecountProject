@@ -402,7 +402,14 @@ class Election extends Model
 
     public function getIsEditableAttribute(): bool
     {
-        return $this->status->isEditable();
+        if ($this->status->isEditable()) {
+            return true;
+        }
+
+        // Une élection en cours mais qui n'a encore reçu aucun vote peut
+        // toujours être modifiée - rien ne serait invalidé par un
+        // changement (titre, description, date de clôture, etc.).
+        return $this->status === ElectionStatus::ONGOING && $this->total_votes === 0;
     }
 
     public function getProgressPercentageAttribute(): float
@@ -533,7 +540,6 @@ class Election extends Model
     public function start(): void
     {
         $this->status = ElectionStatus::ONGOING;
-        // $this->start_at = now();
         $this->save();
     }
 

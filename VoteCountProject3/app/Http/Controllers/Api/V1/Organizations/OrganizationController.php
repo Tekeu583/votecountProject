@@ -264,14 +264,56 @@ class OrganizationController extends BaseApiController
     {
         $this->authorize('update', $organization);
         $request->validate([
-            'user_id' => 'required|exists:users,uuid',
-            'role' => 'required|string|in:owner,admin,member,viewer',
+            'email' => ['required', 'email'],
+            // 'owner' exclu : déjà assigné à la création de l'organisation.
+            'role' => ['required', 'string', 'in:admin,member,viewer'],
         ]);
 
-        $user = User::where('uuid', $request->user_id)->firstOrFail();
+        $user = User::where('email', $request->input('email'))->first();
+        if (! $user) {
+            return $this->error('Aucun utilisateur avec cet email. Le membre doit déjà posséder un compte.', null, 404);
+        }
+
         $this->organizationService->addUser($organization, $user, $request->role);
 
         return $this->success(null, 'User added to organization successfully');
+    }
+
+    /**
+     * Liste les membres de l'organisation (pivot organization_user).
+     */
+    public function listUsers(Organization $organization): JsonResponse
+    {
+        $this->authorize('update', $organization);
+
+        $users = $organization->users()
+            ->get()
+            ->map(fn (User $user) => [
+                'uuid' => $user->uuid,
+                'full_name' => $user->full_name,
+                'email' => $user->email,
+                'photo' => $user->avatar_url,
+                'role_slug' => $user->pivot->role_slug,
+                'status' => $user->pivot->status,
+                'joined_at' => $user->pivot->joined_at,
+            ]);
+
+        return $this->success($users);
+    }
+
+    /**
+     * Change le rôle d'un membre déjà présent dans l'organisation.
+     */
+    public function updateUserRole(Request $request, Organization $organization, User $user): JsonResponse
+    {
+        $this->authorize('manageUsers', $organization);
+        $request->validate([
+            'role' => ['required', 'string', 'in:admin,member,viewer'],
+        ]);
+
+        $this->organizationService->changeRole($organization, $user, $request->input('role'));
+
+        return $this->success(null, 'Rôle mis à jour avec succès.');
     }
 
     /**

@@ -96,6 +96,10 @@ class VoteController extends BaseApiController
             return $response->withCookie(
                 $this->fingerprintService->buildCookie($fingerprint)
             );
+        } catch (VoteException $e) {
+            Log::warning('Public vote submission rejected: ' . $e->getMessage());
+
+            return $e->render();
         } catch (\Exception $e) {
             Log::error('Public vote submission failed: ' . $e->getMessage());
 

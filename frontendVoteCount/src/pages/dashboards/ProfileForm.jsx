@@ -14,7 +14,7 @@ export default function ProfileForm({
 
                 <TextInput
                     label="Prénom"
-                    value={profile.first_name || "User"}
+                    value={profile.first_name || ''}
                     onChange={(e) =>
                         setProfile({ ...profile, first_name: e.target.value })
                     }
@@ -23,7 +23,7 @@ export default function ProfileForm({
 
                 <TextInput
                     label="Nom"
-                    value={profile.last_name || "User"}
+                    value={profile.last_name || ''}
                     onChange={(e) =>
                         setProfile({ ...profile, last_name: e.target.value })
                     }
@@ -32,7 +32,7 @@ export default function ProfileForm({
 
                 <TextInput
                     label="Téléphone"
-                    value={profile.phone || "698765432"}
+                    value={profile.phone || ''}
                     onChange={(e) =>
                         setProfile({ ...profile, phone: e.target.value })
                     }
@@ -41,13 +41,15 @@ export default function ProfileForm({
 
                 <TextInput
                     label="Email"
-                    value={profile.email || "arsene@gmail.com"}
-                    onChange={(e) =>
-                        setProfile({ ...profile, email: e.target.value })
-                    }
+                    value={profile.email || ''}
+                    disabled
                     iconLeft={Mail}
                 />
             </div>
+
+            <p className="px-2 text-xs text-[var(--color-gray)]">
+                L'adresse email ne peut pas être modifiée depuis cette page.
+            </p>
 
             <div className="p-2 border-t border-t-[var(--color-gray-light)] flex justify-end">
                 <button
@@ -76,14 +78,4 @@ ProfileForm.propTypes = {
     setProfile: PropTypes.func.isRequired,
     onSave: PropTypes.func.isRequired,
     loading: PropTypes.bool
-};
-
-ProfileForm.defaultProps = {
-    profile: {
-        first_name: "Tekeu",
-        last_name: "Arsene",
-        email: "arsene@gmail.com",
-        phone: "698765432"
-    },
-    loading: false
 };

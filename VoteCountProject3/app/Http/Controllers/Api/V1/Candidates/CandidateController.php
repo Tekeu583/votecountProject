@@ -13,6 +13,7 @@ use App\Models\Category;
 use App\Models\Election;
 use App\Models\ImportJob;
 use App\Services\CandidateService;
+use App\Services\TrashService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -44,6 +45,19 @@ class CandidateController extends BaseApiController
             ->paginate($request->get('per_page', 15));
 
         return $this->paginated($candidates, CandidateResource::class);
+    }
+
+    /**
+     * Candidatures de l'utilisateur connecté, toutes élections confondues.
+     */
+    public function mine(): JsonResponse
+    {
+        $candidates = Candidate::where('user_id', Auth::id())
+            ->with(['election', 'category'])
+            ->orderByDesc('created_at')
+            ->get();
+
+        return $this->success(CandidateResource::collection($candidates));
     }
 
     public function store(CreateCandidateRequest $request, Election $election): JsonResponse
@@ -116,6 +130,7 @@ class CandidateController extends BaseApiController
     {
         $this->authorize('delete', $candidate);
 
+        TrashService::snapshot($candidate, $election->organization_id, $election->created_by);
         $candidate->delete();
 
         return $this->noContent('Candidate deleted successfully');

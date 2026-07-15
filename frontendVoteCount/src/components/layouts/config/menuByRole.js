@@ -40,6 +40,17 @@ export const menuByRole = {
         ]
     },
 
+    manager: {
+        base: '/manager',
+        menu: [
+            { name: 'Tableau de bord', icon: LayoutDashboard, path: '' },
+            { name: 'Mes scrutins', icon: Vote, path: 'scrutins' },
+            { name: 'Candidats', icon: Users, path: 'candidats' },
+            { name: 'Résultats', icon: ChartLine, path: 'results' },
+            { name: 'Paramètres', icon: Settings, path: 'settings' },
+        ]
+    },
+
     organization_owner: {
         base: '/org',
         menu: [
@@ -47,6 +58,7 @@ export const menuByRole = {
             { name: 'Scrutins', icon: Vote, path: 'scrutins' },
             { name: 'Candidatures', icon: Users, path: 'candidats' },
             { name: 'Jurys', icon: UserCog, path: 'jurys' },
+            { name: 'Équipe', icon: Users, path: 'equipe' },
             { name: 'Électeurs', icon: UserCheck, path: 'electeurs' },
             { name: 'Résultats', icon: ChartLine, path: 'results' },
             { name: 'Revenus', icon: CircleDollarSign, path: 'revenus' },

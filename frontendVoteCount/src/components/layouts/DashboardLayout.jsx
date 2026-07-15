@@ -5,7 +5,7 @@ import Sidebar from './Sidebar';
 import { useAuth } from '@hooks/useAuth';
 import OrgProvider from '@context/OrgProvider';
 import { useOrg } from '@hooks/useOrg';
-import { getPrimaryRole } from '@utils/roleRoutes';
+import { getPrimaryRole, getRoleFromPath } from '@utils/roleRoutes';
 
 /**
  * DashboardLayoutInner
@@ -74,7 +74,12 @@ export default function DashboardLayout() {
     const { user } = useAuth();
     const { orgUuid } = useParams(); // undefined pour les routes non-org
     const location = useLocation();
-    const role = getPrimaryRole(user);
+    // Le dashboard AFFICHÉ suit l'URL, pas le rôle "primaire" — un
+    // utilisateur multi-rôles peut naviguer sur un dashboard différent
+    // de celui calculé par défaut (après un switch, ou un super-admin qui
+    // consulte /jury). Fallback sur le rôle primaire si l'URL ne matche
+    // aucun préfixe connu (ne devrait pas arriver, ProtectedRoute filtre déjà).
+    const role = getRoleFromPath(location.pathname) ?? getPrimaryRole(user);
     const userName = user?.first_name || user?.last_name || user?.email || '';
 
     const isOrgRoute = location.pathname.startsWith('/org');

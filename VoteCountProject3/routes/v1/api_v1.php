@@ -11,12 +11,18 @@ use App\Http\Controllers\Api\V1\Candidates\FinalistController;
 use App\Http\Controllers\Api\V1\Categories\CategoryController;
 use App\Http\Controllers\Api\V1\Elections\ElectionCategoryController;
 use App\Http\Controllers\Api\V1\Elections\ElectionController;
+use App\Http\Controllers\Api\V1\Elections\ElectionStaffController;
+use App\Http\Controllers\Api\V1\Elections\JuryController;
+use App\Http\Controllers\Api\V1\Elections\JuryCriteriaController;
+use App\Http\Controllers\Api\V1\Elections\JuryScoreController;
 use App\Http\Controllers\Api\V1\Electors\ElectorController;
 use App\Http\Controllers\Api\V1\Organizations\OrganizationController;
 use App\Http\Controllers\Api\V1\Payments\PaymentController;
+use App\Http\Controllers\Api\V1\Payments\RevenueController;
 use App\Http\Controllers\Api\V1\Results\ResultController;
 use App\Http\Controllers\Api\V1\Settings\SettingController;
 use App\Http\Controllers\Api\V1\SubscriptionPlans\SubscriptionPlanController;
+use App\Http\Controllers\Api\V1\Trash\TrashController;
 use App\Http\Controllers\Api\V1\Users\UserController;
 use App\Http\Controllers\Api\V1\Votes\VoteController;
 use Illuminate\Support\Facades\Route;
@@ -52,6 +58,10 @@ Route::prefix('elections/{election}')->group(function () {
     Route::get('/candidate-applications/status', [CandidateApplicationController::class, 'checkStatus']);
 
     Route::get('/categories', [ElectionCategoryController::class, 'index']);
+
+    // Vote par catégorie - publics
+    Route::get('/with-categories', [ElectionController::class, 'getElectionWithCategories']);
+    Route::get('/categories/{category}', [ElectionController::class, 'getCategoryDetails']);
 });
 
 // ====== vote private ======
@@ -118,6 +128,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::prefix('auth')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/me', [AuthController::class, 'me']);
+        Route::patch('/profile', [AuthController::class, 'updateProfile']);
+        Route::patch('/password', [AuthController::class, 'updatePassword']);
         Route::post('/2fa/enable', [AuthController::class, 'enableTwoFactor']);
         Route::post('/2fa/verify', [AuthController::class, 'verifyTwoFactor']);
         Route::post('/2fa/disable', [AuthController::class, 'disableTwoFactor']);
@@ -141,7 +153,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Organizations (CRUD)
     Route::get('organizations/my-organizations', [OrganizationController::class, 'myOrganizations']);
     Route::get('organizations/stats', [OrganizationController::class, 'stats']);
+    Route::get('organizations/{organization}/users', [OrganizationController::class, 'listUsers']);
     Route::post('organizations/{organization}/users', [OrganizationController::class, 'addUser']);
+    Route::patch('organizations/{organization}/users/{user}', [OrganizationController::class, 'updateUserRole']);
     Route::delete('organizations/{organization}/users/{user}', [OrganizationController::class, 'removeUser']);
     Route::get('organizations/{organization}/candidates', [OrganizationController::class, 'getCandidates']);
     Route::apiResource('organizations', OrganizationController::class);
@@ -171,6 +185,36 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/managers', [ElectionController::class, 'addManager']);
         Route::delete('/managers/{user}', [ElectionController::class, 'removeManager']);
     });
+
+    // Jury (vote_type = weighted)
+    Route::get('jury/elections', [JuryController::class, 'myElections']);
+    Route::prefix('elections/{election}')->group(function () {
+        Route::get('/jury', [JuryController::class, 'index']);
+        Route::post('/jury', [JuryController::class, 'store']);
+        Route::delete('/jury/{user}', [JuryController::class, 'destroy']);
+
+        Route::get('/jury-criteria', [JuryCriteriaController::class, 'index']);
+        Route::post('/jury-criteria', [JuryCriteriaController::class, 'store']);
+        Route::put('/jury-criteria/{criteria}', [JuryCriteriaController::class, 'update']);
+        Route::delete('/jury-criteria/{criteria}', [JuryCriteriaController::class, 'destroy']);
+
+        Route::get('/jury/candidates', [JuryScoreController::class, 'candidates']);
+        Route::get('/jury/candidates/{candidate}/scores', [JuryScoreController::class, 'candidateScores']);
+        Route::post('/jury/scores', [JuryScoreController::class, 'store']);
+    });
+
+    // Staff d'élection : gestionnaires (manager) et observateurs (observer)
+    Route::get('manager/elections', [ElectionStaffController::class, 'myElections']);
+    Route::prefix('elections/{election}')->group(function () {
+        Route::get('/staff', [ElectionStaffController::class, 'index']);
+        Route::post('/staff', [ElectionStaffController::class, 'store']);
+        Route::delete('/staff/{user}', [ElectionStaffController::class, 'destroy']);
+    });
+
+    // Mes candidatures (utilisateur connecté, toutes élections) — doit être
+    // déclarée avant le groupe candidates/{candidate} pour que 'mine' ne
+    // soit pas interprété comme un uuid de candidat par le route binding.
+    Route::get('candidates/mine', [CandidateController::class, 'mine']);
 
     // Gestion des documents des candidats
     Route::prefix('candidates/{candidate}')->group(function () {
@@ -253,4 +297,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Audit
     Route::get('audit-logs', [AuditController::class, 'index']);
     Route::get('audit-logs/{auditLog}', [AuditController::class, 'show']);
+
+    // Revenus (historique des transactions)
+    Route::get('payments/transactions', [RevenueController::class, 'index']);
+    Route::get('payments/transactions/stats', [RevenueController::class, 'stats']);
+
+    // Corbeille
+    Route::get('trash', [TrashController::class, 'index']);
+    Route::post('trash/{trashRecord}/restore', [TrashController::class, 'restore']);
+    Route::delete('trash/{trashRecord}', [TrashController::class, 'forceDelete']);
 });

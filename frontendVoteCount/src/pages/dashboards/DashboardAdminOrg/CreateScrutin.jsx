@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Step1Generales from '@components/dashboard/Step1Generales';
+import StepJuryCriteria from '@components/dashboard/StepJuryCriteria';
 import Step2Candidats from '@components/dashboard/Step2Candidats';
 import Step3Votants from '@components/dashboard/Step3Votants';
 import Step4Recapitulatif from '@components/dashboard/Step4Recapitulatif';
@@ -99,6 +100,28 @@ const CreateScrutin = () => {
     // ── Dérivé : election_mode courant (depuis le draft, plus fiable que formData) ──
 
     const currentElectionMode = formData.general?.election_mode ?? 'public';
+
+    // ── Séquence d'étapes dynamique : une étape "Critères de jury" est
+    // insérée entre Général et Candidats uniquement pour vote_type='weighted'
+    // (jury_criteria n'a de sens que pour ce type d'élection). ──
+    const isWeighted = formData.general?.vote_type === 'weighted';
+    const WIZARD_STEPS = isWeighted
+        ? [
+            { id: 1, title: 'Informations Générales' },
+            { id: 2, title: 'Critères de Jury' },
+            { id: 3, title: 'Gestion des Candidats' },
+            { id: 4, title: 'Paramètres des Votants' },
+            { id: 5, title: 'Récapitulatif & Publication' },
+        ]
+        : [
+            { id: 1, title: 'Informations Générales' },
+            { id: 2, title: 'Gestion des Candidats' },
+            { id: 3, title: 'Paramètres des Votants' },
+            { id: 4, title: 'Récapitulatif & Publication' },
+        ];
+    const CANDIDATS_STEP = isWeighted ? 3 : 2;
+    const VOTANTS_STEP = isWeighted ? 4 : 3;
+    const RECAP_STEP = isWeighted ? 5 : 4;
 
     // ── Navigation entre étapes 2→3, 3→4 ──────────────────────────
 
@@ -251,11 +274,14 @@ const CreateScrutin = () => {
         }
     };
 
+    // ── Step Critères de jury (vote_type='weighted' uniquement) → Candidats
+    const handleCriteriaNext = () => setCurrentStep(prev => prev + 1);
+
     /// ── Step2 → les candidats sont déjà créés en base à ce stade
 
     const handleStep2Next = (data) => {
         setFormData(prev => ({ ...prev, candidats: data.candidats }));
-        setCurrentStep(3);
+        setCurrentStep(prev => prev + 1);
     };
 
 
@@ -407,7 +433,7 @@ const CreateScrutin = () => {
             <div className="max-w-5xl mx-auto px-4 lg:px-6">
 
                 {/* Fil d'Ariane */}
-                <ScrutinBreadcrumb currentStep={currentStep} onStepClick={handleStepClick} />
+                <ScrutinBreadcrumb currentStep={currentStep} onStepClick={handleStepClick} steps={WIZARD_STEPS} />
 
                 {/* Overlay de soumission */}
                 {submitting && (
@@ -427,8 +453,17 @@ const CreateScrutin = () => {
                     />
                 )}
 
-                {/* ── Step 2 : Candidats — draftUuid garanti non-null ici ── */}
-                {currentStep === 2 && (
+                {/* ── Step Critères de jury (vote_type='weighted' uniquement) — draftUuid garanti non-null ici ── */}
+                {isWeighted && currentStep === 2 && (
+                    <StepJuryCriteria
+                        electionUuid={draftUuid}
+                        onNext={handleCriteriaNext}
+                        onPrevious={handlePrevious}
+                    />
+                )}
+
+                {/* ── Step Candidats — draftUuid garanti non-null ici ── */}
+                {currentStep === CANDIDATS_STEP && (
                     <Step2Candidats
                         onNext={handleStep2Next}
                         onPrevious={handlePrevious}
@@ -439,8 +474,8 @@ const CreateScrutin = () => {
                     />
                 )}
 
-                {/* ── Step 3 : Votants (conditionnel selon le type d'élection) ── */}
-                {currentStep === 3 && (
+                {/* ── Step Votants (conditionnel selon le type d'élection) ── */}
+                {currentStep === VOTANTS_STEP && (
                     <Step3Votants
                         onNext={(data) => handleNext('votants', data)}
                         onPrevious={handlePrevious}
@@ -451,8 +486,8 @@ const CreateScrutin = () => {
                     />
                 )}
 
-                {/* ── Step 4 : Récapitulatif & Publication ── */}
-                {currentStep === 4 && (
+                {/* ── Step Récapitulatif & Publication ── */}
+                {currentStep === RECAP_STEP && (
                     <Step4Recapitulatif
                         data={formData}
                         isPublish={isPublish}

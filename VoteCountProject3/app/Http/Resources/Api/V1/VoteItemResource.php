@@ -15,6 +15,7 @@ class VoteItemResource extends JsonResource
             'rank_position' => $this->rank_position,
             'score' => $this->score,
             'weight' => $this->weight,
+            'quantity' => $this->quantity,
         ];
     }
 }

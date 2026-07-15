@@ -1,13 +1,13 @@
 import React from 'react';
 
-const steps = [
+const DEFAULT_STEPS = [
     { id: 1, title: "Informations Générales" },
     { id: 2, title: "Gestion des Candidats" },
     { id: 3, title: "Paramètres des Votants" },
     { id: 4, title: "Récapitulatif & Publication" },
 ];
 
-const ScrutinBreadcrumb = ({ currentStep, onStepClick }) => {
+const ScrutinBreadcrumb = ({ currentStep, onStepClick, steps = DEFAULT_STEPS }) => {
     return (
         <div className="mb-12">
             <div className="flex items-center justify-center">

@@ -97,6 +97,11 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // Force la session Postgres sur le même fuseau que app.timezone (UTC).
+            // Sans ça, les comparaisons de dates naïves (ex: where('start_at','<=',now()))
+            // sont interprétées dans le fuseau de session Postgres (celui du serveur,
+            // ex: Africa/Douala) au lieu d'UTC, décalant silencieusement les résultats.
+            'timezone' => 'UTC',
             'options' => [
                 // Optimisations PostgreSQL
                 PDO::ATTR_EMULATE_PREPARES => false,

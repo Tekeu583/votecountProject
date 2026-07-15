@@ -23,7 +23,10 @@ class CreateElectionRequest extends FormRequest
             'banner' => ['nullable', 'image', 'max:5120', 'mimes:jpeg,png,jpg'],
 
             'election_mode' => ['required', 'in:public,private,restricted'],
-            'vote_type' => ['required', 'in:single,multiple,ranked,score,weighted'],
+            // "score" existe dans l'enum VoteType mais n'a pas encore de bulletin
+            // dédié côté vote public (PortailVote.jsx) — le retirer des valeurs
+            // sélectionnables évite de créer des élections injouables.
+            'vote_type' => ['required', 'in:single,multiple,ranked,weighted'],
 
             'visibility_type' => ['required', 'in:public,private,unlisted'],
             'payment_type' => ['required', 'in:free,paid,subscription'],
@@ -56,9 +59,38 @@ class CreateElectionRequest extends FormRequest
             ],
             'max_candidates'     => ['sometimes', 'integer', 'min:0'],
             'has_categories'     => ['sometimes', 'boolean'],
+
+            'public_weight' => ['sometimes', 'numeric', 'min:0', 'max:1'],
+            'jury_weight'   => ['sometimes', 'numeric', 'min:0', 'max:1'],
         ];
     }
 
+
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator) {
+            if ($this->input('vote_type') === 'multiple' && $this->input('payment_type') !== 'paid') {
+                $validator->errors()->add('vote_type', 'Le vote multiple nécessite une élection payante.');
+            }
+
+            // Une élection payante avec vote_price = 0 casse le calcul de
+            // quantité (amount / vote_price) — required_if seul laisse
+            // passer 0, il faut explicitement exiger > 0.
+            if ($this->input('payment_type') === 'paid' && (float) $this->input('vote_price') <= 0) {
+                $validator->errors()->add('vote_price', 'Le prix du vote doit être supérieur à 0 pour une élection payante.');
+            }
+
+            // public_weight/jury_weight sont des fractions 0–1 qui doivent
+            // sommer à 1 pour que la formule de score pondéré ait un sens.
+            if ($this->input('vote_type') === 'weighted') {
+                $publicWeight = (float) ($this->input('public_weight') ?? 1.0);
+                $juryWeight = (float) ($this->input('jury_weight') ?? 0);
+                if (abs(($publicWeight + $juryWeight) - 1.0) > 0.001) {
+                    $validator->errors()->add('jury_weight', 'La somme de public_weight et jury_weight doit être égale à 1.');
+                }
+            }
+        });
+    }
 
     public function messages(): array
     {
@@ -70,7 +102,7 @@ class CreateElectionRequest extends FormRequest
             'election_mode.required'      => 'Le mode d\'élection est requis.',
             'election_mode.in'            => 'Mode invalide. Valeurs : public, private, restricted.',
             'vote_type.required'          => 'Le type de vote est requis.',
-            'vote_type.in'                => 'Type invalide. Valeurs : single, multiple, ranked, score, weighted.',
+            'vote_type.in'                => 'Type invalide. Valeurs : single, multiple, ranked, weighted.',
             'visibility_type.required'    => 'La visibilité est requise.',
             'visibility_type.in'          => 'Visibilité invalide. Valeurs : public, private, unlisted.',
             'payment_type.required'       => 'Le type de paiement est requis.',

@@ -26,29 +26,11 @@ import toast from 'react-hot-toast';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import TextInput from '@components/ui/TextInput';
 import { votesApi, paymentsApi } from '@services/api';
+import { computeVoteQuantity } from '@utils/voteAmount';
 
 // Nombre max de tentatives de polling avant d'abandonner (≈ 4s * 30 = 2 min).
 const MAX_POLL_ATTEMPTS = 30;
 const POLL_INTERVAL_MS = 4000;
-
-
-function computeVoteQuantity(amountStr, votePriceStr) {
-    const amount = parseFloat(amountStr);
-    const price = parseFloat(votePriceStr);
-
-    if (!amount || !price || amount <= 0 || price <= 0) {
-        return { isValid: false, quantity: 0 };
-    }
-
-    const amountCents = Math.round(amount * 100);
-    const priceCents = Math.round(price * 100);
-
-    if (amountCents % priceCents !== 0) {
-        return { isValid: false, quantity: Math.floor(amountCents / priceCents) };
-    }
-
-    return { isValid: true, quantity: amountCents / priceCents };
-}
 
 const VotePayment = () => {
     const { state } = useLocation();

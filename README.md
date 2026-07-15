@@ -1,4 +1,3 @@
-
 # VoteCount — Plateforme de gestion d'élections en ligne
 
 Plateforme de vote en ligne (public et privé) avec résultats en temps réel,

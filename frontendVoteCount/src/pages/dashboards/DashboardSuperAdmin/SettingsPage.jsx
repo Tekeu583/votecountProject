@@ -15,14 +15,17 @@ export default function SettingsPage() {
         loading,
         savingProfile,
         savingPassword,
+        savingPhoto,
         updateProfile,
         updatePassword,
+        updatePhoto,
     } = useProfile();
 
     if (loading) return <div>Loading...</div>;
 
-    const completion =
-        Object.values(profile).filter(Boolean).length * 25;
+    const completion = Math.round(
+        (Object.values(profile).filter(Boolean).length / Object.keys(profile).length) * 100
+    );
 
     return (
         <div className="bg-[var(--color-background-white)] p-2 space-y-6">
@@ -31,7 +34,7 @@ export default function SettingsPage() {
 
             <div className="grid lg:grid-cols-[300px_1fr] gap-6">
 
-                <ProfileSidebarCard profile={profile} />
+                <ProfileSidebarCard profile={profile} onPhotoChange={updatePhoto} saving={savingPhoto} />
                 <div className="space-y-6">
                     <ProfileForm
                         profile={profile}

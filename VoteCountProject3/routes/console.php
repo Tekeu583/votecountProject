@@ -2,6 +2,7 @@
 
 use App\Console\Commands\ProcessElectionLifecycle;
 use App\Console\Commands\ProcessSubscriptionRenewals;
+use App\Console\Commands\PurgeExpiredTrash;
 use App\Jobs\CleanStaleDrafts;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -46,3 +47,13 @@ Schedule::command(ProcessSubscriptionRenewals::class)
 
 // Nettoyage quotidien des brouillons d'élection abandonnés (> 7 jours sans activité)
 Schedule::job(new CleanStaleDrafts)->daily();
+
+// Purge définitive quotidienne de la corbeille (éléments non restaurés
+// dont expires_at est dépassé — 60 jours après suppression par défaut).
+Schedule::command(PurgeExpiredTrash::class)
+    ->daily()
+    ->withoutOverlapping()
+    ->runInBackground()
+    ->onFailure(function () {
+        Log::error('PurgeExpiredTrash : échec de l\'exécution planifiée');
+    });

@@ -5,34 +5,94 @@ export const getRoleBaseRoute = (role) => {
     return menuByRole[role]?.base || '/';
 };
 
-export const getPrimaryRole = (user) => {
-    if (!user) return null;
+const normalizeRole = (r) => {
+    if (!r) return null;
+    if (typeof r === 'string') return r;
+    // r peut être un objet { id, name, ... } (Spatie)
+    return r.name || r.id || null;
+};
 
-    const normalize = (r) => {
-        if (!r) return null;
-        if (typeof r === 'string') return r;
-        // r peut être un objet { id, name, ... } (Spatie)
-        return r.name || r.id || null;
-    };
+/**
+ * getAvailableRoles
+ *
+ * Liste COMPLÈTE des dashboards accessibles par l'utilisateur — pas
+ * seulement son rôle "primaire". Un utilisateur peut cumuler plusieurs
+ * rôles (ex: organization_owner ET jury sur une élection d'une autre org).
+ *
+ * super_admin/candidat restent basés uniquement sur les rôles globaux
+ * Spatie (user.roles) — candidat n'est jamais assigné contextuellement
+ * aujourd'hui côté backend.
+ *
+ * organization_owner/jury sont aussi détectés via les données contextuelles
+ * déjà présentes dans la réponse /me (user.organizations, user.elections),
+ * car ces rôles ne sont pas fiablement synchronisés dans user.roles — un
+ * juré assigné via ElectionService::addManager() n'obtient PAS le rôle
+ * Spatie "jury" (assignation contextuelle uniquement, election_user.role_slug).
+ *
+ * Retourne les rôles triés selon ROLE_PRIORITY.
+ */
+export const getAvailableRoles = (user) => {
+    if (!user) return [];
 
-    // Cas 1 : tableau `roles` — source de vérité principale
-    // On cherche le rôle le plus prioritaire selon ROLE_PRIORITY
-    if (Array.isArray(user.roles) && user.roles.length > 0) {
-        const normalized = user.roles.map(normalize).filter(Boolean);
-        const found = ROLE_PRIORITY.find((r) => normalized.includes(r));
-        if (found) return found;
-        // Rôle présent mais inconnu dans ROLE_PRIORITY → on le retourne tel quel
-        return normalized[0];
+    const found = new Set();
+
+    if (Array.isArray(user.roles)) {
+        user.roles.map(normalizeRole).filter(Boolean).forEach((r) => found.add(r));
     }
 
-    // Cas 2 : champ `role` scalaire (string ou objet) — fallback
-    if (user.role) return normalize(user.role);
+    if (Array.isArray(user.organizations) && user.organizations.length > 0) {
+        found.add(ROLES.ADMIN_ORG);
+    }
 
-    // Cas 3 : rôle contextuel (organisation ou élection)
-    if (user.current_organization_role) return normalize(user.current_organization_role);
-    if (user.current_election_role) return normalize(user.current_election_role);
+    if (Array.isArray(user.elections) && user.elections.some((e) => e.role === ROLES.JURY)) {
+        found.add(ROLES.JURY);
+    }
 
-    return ROLES.USER;
+    if (Array.isArray(user.elections) && user.elections.some((e) => e.role === ROLES.MANAGER)) {
+        found.add(ROLES.MANAGER);
+    }
+
+    // Fallbacks scalaires historiques (payloads hors /me éventuels)
+    if (found.size === 0) {
+        if (user.role) found.add(normalizeRole(user.role));
+        if (user.current_organization_role) found.add(normalizeRole(user.current_organization_role));
+        if (user.current_election_role) found.add(normalizeRole(user.current_election_role));
+    }
+
+    if (found.size === 0) return [ROLES.USER];
+
+    const ordered = ROLE_PRIORITY.filter((r) => found.has(r));
+    // Rôle(s) présent(s) mais inconnu(s) de ROLE_PRIORITY → ajoutés à la fin
+    const unknown = [...found].filter((r) => !ROLE_PRIORITY.includes(r));
+
+    return [...ordered, ...unknown];
+};
+
+/**
+ * getPrimaryRole
+ *
+ * Rôle le plus prioritaire parmi les dashboards accessibles — utilisé pour
+ * la redirection par défaut après connexion.
+ */
+export const getPrimaryRole = (user) => {
+    if (!user) return null;
+    return getAvailableRoles(user)[0] ?? ROLES.USER;
+};
+
+/**
+ * getRoleFromPath
+ *
+ * Déduit le rôle/dashboard courant depuis le préfixe d'URL — source de
+ * vérité pour la Sidebar (indépendante du rôle "primaire" de l'utilisateur,
+ * qui peut naviguer sur un dashboard différent après un switch).
+ */
+export const getRoleFromPath = (pathname) => {
+    if (pathname.startsWith('/super-admin')) return ROLES.SUPER_ADMIN;
+    if (pathname.startsWith('/org')) return ROLES.ADMIN_ORG;
+    if (pathname.startsWith('/jury')) return ROLES.JURY;
+    if (pathname.startsWith('/manager')) return ROLES.MANAGER;
+    if (pathname.startsWith('/candidat')) return ROLES.CANDIDAT;
+    return null;
 };
 export const getRoleDefaultRoute = (role) => {
     const roleConfig = menuByRole[role];
@@ -58,6 +118,8 @@ export const getDashboardRoute = (role) => {
             return '/org';
         case ROLES.JURY:
             return '/jury';
+        case ROLES.MANAGER:
+            return '/manager';
         case ROLES.CANDIDAT:
             return '/candidat';
         case ROLES.USER:

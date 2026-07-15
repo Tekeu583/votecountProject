@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     Search,
     Calendar,
@@ -8,8 +8,25 @@ import {
     ChevronLeft,
     ChevronRight,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import TextInput from '@components/ui/TextInput';
 import { useNavigate } from 'react-router-dom';
+import { juryApi } from '@services/api';
+import { FadeLoader } from 'react-spinners';
+
+const MAX_ELECTIONS_FETCHED = 20;
+
+const statusLabel = (status) => {
+    if (status === 'ongoing') return 'En cours';
+    if (['closed', 'completed', 'archived', 'cancelled'].includes(status)) return 'Terminé';
+    return 'En attente';
+};
+
+const STATUS_STYLES = {
+    'En cours': 'bg-blue-100 text-blue-700',
+    'En attente': 'bg-gray-100 text-gray-600',
+    'Terminé': 'bg-emerald-100 text-emerald-700',
+};
 
 const MesScrutinsAssignes = () => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -19,71 +36,49 @@ const MesScrutinsAssignes = () => {
     const itemsPerPage = 5;
     const navigate = useNavigate();
 
-    // Données simulées
-    const scrutins = useMemo(() => [
-        {
-            id:1,
-            code: 'SCR-2024-001',
-            titre: "Prix de l'Innovation Tech 2024",
-            organisation: 'CCI France',
-            dateLimite: '2024-10-15',
-            candidats: 12,
-            status: 'À évaluer',
-            statusColor: 'bg-yellow-100 text-yellow-700',
-            action: 'Commencer',
-            actionType: 'primary',
-        },
-        {
-            id:2,
-            code: 'SCR-2024-042',
-            titre: 'Bourse Excellence Académique',
-            organisation: 'Fondation Académique',
-            dateLimite: '2024-10-20',
-            candidats: 8,
-            status: 'En cours',
-            statusColor: 'bg-blue-100 text-blue-700',
-            progress: 60,
-            action: 'Reprendre',
-            actionType: 'primary',
-        },
-        {
-            id:3,
-            code: 'SCR-2024-089',
-            titre: 'Grand Prix Entrepreneuriat',
-            organisation: "Ministère de l'Économie",
-            dateLimite: '2024-11-05',
-            candidats: 25,
-            status: 'En attente',
-            statusColor: 'bg-gray-100 text-gray-600',
-            action: 'Détails',
-            actionType: 'secondary',
-        },
-        {
-            id:4,
-            code: 'SCR-2024-112',
-            titre: 'Concours Startup Durable',
-            organisation: 'Région Île-de-France',
-            dateLimite: '2024-09-30',
-            candidats: 15,
-            status: 'Terminé',
-            statusColor: 'bg-emerald-100 text-emerald-700',
-            action: 'Résultats',
-            actionType: 'secondary',
-        },
-    ], []);
+    const [scrutins, setScrutins] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-    // Filtrage avancé
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                const electionsRes = await juryApi.getMyElections();
+                const elections = (electionsRes.data?.data ?? []).slice(0, MAX_ELECTIONS_FETCHED);
+
+                const enriched = await Promise.all(
+                    elections.map(async (election) => {
+                        const candidates = await juryApi.getCandidates(election.uuid)
+                            .then((res) => res.data?.data ?? [])
+                            .catch(() => []);
+                        const scoredCount = candidates.filter((c) => c.scored).length;
+
+                        return {
+                            uuid: election.uuid,
+                            titre: election.title,
+                            dateLimite: election.end_at ? election.end_at.slice(0, 10) : '—',
+                            candidats: candidates.length,
+                            scoredCount,
+                            status: statusLabel(election.status),
+                        };
+                    })
+                );
+
+                setScrutins(enriched);
+            } catch {
+                toast.error('Impossible de charger vos scrutins.');
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, []);
+
     const filteredScrutins = useMemo(() => {
         return scrutins.filter((scrutin) => {
-            const matchesSearch =
-                scrutin.titre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                scrutin.organisation.toLowerCase().includes(searchTerm.toLowerCase());
-
-            const matchesStatus =
-                statusFilter === 'Tous' || scrutin.status === statusFilter;
-
+            const matchesSearch = scrutin.titre.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesStatus = statusFilter === 'Tous' || scrutin.status === statusFilter;
             const matchesDate = !dateFilter || scrutin.dateLimite === dateFilter;
-
             return matchesSearch && matchesStatus && matchesDate;
         });
     }, [searchTerm, statusFilter, dateFilter, scrutins]);
@@ -101,15 +96,27 @@ const MesScrutinsAssignes = () => {
         setCurrentPage(1);
     };
 
+    const getAction = (scrutin) => {
+        if (scrutin.status === 'Terminé') return { label: 'Résultats', type: 'secondary' };
+        if (scrutin.status === 'En attente') return { label: 'Détails', type: 'secondary' };
+        return { label: scrutin.scoredCount > 0 ? 'Reprendre' : 'Commencer', type: 'primary' };
+    };
+
     const handleAction = (scrutin) => {
         if (scrutin.status === 'Terminé') {
-            console.log('Naviguer vers les résultats de', scrutin.id);
-            navigate(`/jury/results/${scrutin.id}`);
+            navigate(`/jury/results/${scrutin.uuid}`);
         } else {
-            console.log('Naviguer vers les candidats de', scrutin.id);
-            navigate(`/jury/candidats/${scrutin.id}`);
+            navigate(`/jury/candidats/${scrutin.uuid}`);
         }
     };
+
+    if (loading) {
+        return (
+            <div className="h-[calc(100vh-68px)] flex items-center justify-center">
+                <FadeLoader color="#1e40af" cssOverride={{ display: 'block', margin: '0 auto' }} />
+            </div>
+        );
+    }
 
     return (
         <div className="flex-1 bg-[var(--color-background-white)] p-4">
@@ -140,7 +147,7 @@ const MesScrutinsAssignes = () => {
                     <div className="flex-1">
                         <TextInput
                             iconLeft={Search}
-                            placeholder="Rechercher par titre ou organisation..."
+                            placeholder="Rechercher par titre..."
                             value={searchTerm}
                             onChange={(e) => {
                                 setSearchTerm(e.target.value);
@@ -160,7 +167,6 @@ const MesScrutinsAssignes = () => {
                             className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-600"
                         >
                             <option value="Tous">Tous les statuts</option>
-                            <option value="À évaluer">À évaluer</option>
                             <option value="En cours">En cours</option>
                             <option value="En attente">En attente</option>
                             <option value="Terminé">Terminé</option>
@@ -195,7 +201,6 @@ const MesScrutinsAssignes = () => {
                             <thead className="bg-gray-50 border-b border-b-[var(--color-gray-light)]">
                                 <tr className="text-xs uppercase text-[var(--color-dark)]">
                                     <th className="text-left px-3 py-2 font-medium">TITRE DU SCRUTIN</th>
-                                    <th className="text-left px-3 py-2 font-medium">ORGANISATION</th>
                                     <th className="text-left px-3 py-2 font-medium">DATE LIMITE</th>
                                     <th className="text-left px-3 py-2 font-medium">CANDIDATS</th>
                                     <th className="text-left px-3 py-2 font-medium">STATUT</th>
@@ -203,45 +208,51 @@ const MesScrutinsAssignes = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-[var(--color-gray-light)]">
-                                {paginatedScrutins.map((scrutin) => (
-                                    <tr key={scrutin.id} className="hover:bg-[var(--color-gray-light)] transition-colors">
-                                        <td className="px-3 py-2">
-                                            <div>
+                                {paginatedScrutins.map((scrutin) => {
+                                    const action = getAction(scrutin);
+                                    return (
+                                        <tr key={scrutin.uuid} className="hover:bg-[var(--color-gray-light)] transition-colors">
+                                            <td className="px-3 py-2">
                                                 <p className="font-semibold text-gray-900">{scrutin.titre}</p>
-                                                <p className="text-xs text-gray-500 mt-1">code: {scrutin.code}</p>
-                                            </div>
-                                        </td>
-                                        <td className="px-3 py-2 text-gray-600">{scrutin.organisation}</td>
-                                        <td className="px-3 py-2">
-                                            <div className="flex items-center gap-2 text-red-600">
-                                                <Calendar size={16} />
-                                                <span className="font-medium">{scrutin.dateLimite}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-3 py-2 text-center">
-                                            <span className="inline-flex items-center gap-1 bg-gray-100 px-3 py-1 rounded-full text-sm">
-                                                👥 {scrutin.candidats}
-                                            </span>
-                                        </td>
-                                        <td className="px-3 py-2 text-center">
-                                            <span className={`inline-flex px-4 py-1 text-xs font-medium rounded-full ${scrutin.statusColor}`}>
-                                                {scrutin.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-3 py-2 text-right">
-                                            <button
-                                                onClick={() => handleAction(scrutin)}
-                                                className={`px-5 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 ${scrutin.actionType === 'primary'
-                                                    ? 'btn-primary text-white'
-                                                    : 'btn-secondary text-gray-700'
-                                                    }`}
-                                            >
-                                                {scrutin.action}
-                                                {scrutin.status === 'En cours' && <span>↻</span>}
-                                            </button>
+                                            </td>
+                                            <td className="px-3 py-2">
+                                                <div className="flex items-center gap-2 text-red-600">
+                                                    <Calendar size={16} />
+                                                    <span className="font-medium">{scrutin.dateLimite}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-3 py-2 text-center">
+                                                <span className="inline-flex items-center gap-1 bg-gray-100 px-3 py-1 rounded-full text-sm">
+                                                    👥 {scrutin.scoredCount}/{scrutin.candidats}
+                                                </span>
+                                            </td>
+                                            <td className="px-3 py-2 text-center">
+                                                <span className={`inline-flex px-4 py-1 text-xs font-medium rounded-full ${STATUS_STYLES[scrutin.status]}`}>
+                                                    {scrutin.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-3 py-2 text-right">
+                                                <button
+                                                    onClick={() => handleAction(scrutin)}
+                                                    className={`px-5 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 ${action.type === 'primary'
+                                                        ? 'btn-primary text-white'
+                                                        : 'btn-secondary text-gray-700'
+                                                        }`}
+                                                >
+                                                    {action.label}
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+
+                                {paginatedScrutins.length === 0 && (
+                                    <tr>
+                                        <td colSpan="5" className="text-center py-10 text-gray-500">
+                                            Aucun scrutin trouvé
                                         </td>
                                     </tr>
-                                ))}
+                                )}
                             </tbody>
                         </table>
                     </div>
@@ -249,7 +260,7 @@ const MesScrutinsAssignes = () => {
                     {/* Pagination */}
                     <div className="flex flex-col lg:flex-row justify-between items-center px-3 py-2 text-sm gap-3">
                         <span className="text-[var(--color-gray)]">
-                            Affichage de {(currentPage - 1) * itemsPerPage + 1} à{" "}
+                            Affichage de {filteredScrutins.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} à{" "}
                             {Math.min(currentPage * itemsPerPage, filteredScrutins.length)} sur{" "}
                             {filteredScrutins.length}
                         </span>
@@ -259,10 +270,10 @@ const MesScrutinsAssignes = () => {
                                 onClick={() => setCurrentPage((p) => p - 1)}
                                 className="px-3 py-1 border rounded"><ChevronLeft size={16} /></button>
                             <span className="px-3 py-1 bg-[var(--color-primary)] text-white rounded">
-                                {currentPage} / {totalPages}
+                                {currentPage} / {totalPages || 1}
                             </span>
                             <button
-                                disabled={currentPage === totalPages}
+                                disabled={currentPage === totalPages || totalPages === 0}
                                 onClick={() => setCurrentPage((p) => p + 1)}
                                 className="px-3 py-1 border rounded"><ChevronRight size={16} /></button>
                         </div>
@@ -305,9 +316,9 @@ const MesScrutinsAssignes = () => {
                                 <BarChart3 className="text-emerald-600" size={24} />
                             </div>
                             <div>
-                                <p className="font-medium">Rapports de Synthèse</p>
+                                <p className="font-medium">Résultats</p>
                                 <p className="text-sm text-gray-600 mt-1">
-                                    Une fois le vote clos, vous pourrez télécharger le récapitulatif des délibérations en PDF.
+                                    Une fois le scrutin clôturé, consultez le classement final combinant vote public et notes du jury.
                                 </p>
                             </div>
                         </div>

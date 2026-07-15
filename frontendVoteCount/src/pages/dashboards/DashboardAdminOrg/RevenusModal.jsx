@@ -3,16 +3,13 @@ import PropTypes from 'prop-types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { X, } from 'lucide-react';
-function RevenusModal({ data, onClose, onSuccess }) {
+function RevenusModal({ data, stats, onClose, onSuccess, onError }) {
   const [reportPeriod, setReportPeriod] = useState('6months');
   const [isGenerating, setIsGenerating] = useState(false);
   // Fonction pour générer le rapport complet
   const generateReport = async () => {
     setIsGenerating(true);
     try {
-      // Simulation de chargement
-      await new Promise(resolve => setTimeout(resolve, 1200));
-
       const doc = new jsPDF();
       const today = new Date().toLocaleDateString('fr-FR');
 
@@ -31,10 +28,9 @@ function RevenusModal({ data, onClose, onSuccess }) {
         startY: 65,
         head: [['Indicateur', 'Valeur']],
         body: [
-          ['Revenu Total', '12 450,00 €'],
-          ['Moyenne par Votant', '4,85 €'],
-          ['Sondages Payants Actifs', '8'],
-          ['Montant prêt pour virement', '3 120,50 €'],
+          ['Revenu Total', `${Number(stats?.total_revenue ?? 0).toLocaleString('fr-FR')} CFA`],
+          ['Moyenne par Votant', `${Number(stats?.average_per_voter ?? 0).toLocaleString('fr-FR')} CFA`],
+          ['Sondages Payants Actifs', String(stats?.active_paid_polls ?? 0)],
         ],
         theme: 'striped',
       });
@@ -50,21 +46,20 @@ function RevenusModal({ data, onClose, onSuccess }) {
           t.poll,
           t.date,
           t.statut,
-          `${t.montant.toLocaleString('fr-FR')} €`
+          `${t.montant.toLocaleString('fr-FR')} CFA`
         ]),
         theme: 'grid',
       });
 
       doc.save(`Rapport_Revenus_VoteCount_${today.replace(/\//g, '-')}.pdf`);
 
-      setIsGenerating(false);
-      // Notification de succès
       onSuccess("Rapport généré avec succès et téléchargé !");
       onClose();
 
     } catch (error) {
-      onerror(error);
-      onclose();
+      onError(error?.message ?? 'Erreur lors de la génération du rapport.');
+    } finally {
+      setIsGenerating(false);
     }
   }
   return (
@@ -102,9 +97,7 @@ function RevenusModal({ data, onClose, onSuccess }) {
             Le rapport contiendra :
             <ul className="list-disc list-inside mt-2 space-y-1">
               <li>Résumé des revenus</li>
-              <li>Graphique d’évolution</li>
               <li>Liste des transactions récentes</li>
-              <li>Statistiques détaillées</li>
             </ul>
           </div>
         </div>
@@ -136,8 +129,14 @@ function RevenusModal({ data, onClose, onSuccess }) {
 
 RevenusModal.propTypes = {
   data: PropTypes.array.isRequired,
+  stats: PropTypes.shape({
+    total_revenue: PropTypes.number,
+    average_per_voter: PropTypes.number,
+    active_paid_polls: PropTypes.number,
+  }),
   onClose: PropTypes.func.isRequired,
   onSuccess: PropTypes.func.isRequired,
+  onError: PropTypes.func.isRequired,
 };
 
 export default RevenusModal;

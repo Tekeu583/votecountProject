@@ -1,7 +1,7 @@
 // pages/dashboards/DashboardAdminOrg/Scrutins.jsx
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import {
   Plus, Search, BarChart3, ChevronLeft, ChevronRight,
   Trash2, Eye, Send, MoreVertical, RefreshCw, Loader2,
@@ -12,7 +12,6 @@ import toast from 'react-hot-toast';
 import { electionsApi } from '@services/api';
 import { useOrg } from '@hooks/useOrg';
 import { FadeLoader } from "react-spinners";
-import { useDebounce } from '@hooks/useDebounce';
 import TextInput from '@components/ui/TextInput';
 // ── Constantes ────────────────────────────────────────────────────
 
@@ -79,7 +78,11 @@ function ActionMenu({ election, orgUuid, onAction }) {
     {
       label: 'Modifier',
       icon: Pencil,
-      show: ['draft', 'pending'].includes(election.status),
+      // Source de vérité unique : Election::getIsEditableAttribute()
+      // (déjà utilisé par EditScrutin.jsx) — une liste de statuts en dur
+      // ici se désynchronise dès que la règle backend évolue (ex. une
+      // élection "ongoing" sans vote redevient modifiable).
+      show: election.is_editable,
       to: `/org/${orgUuid}/scrutins/${election.uuid}/edit`,
     },
     {
@@ -112,7 +115,8 @@ function ActionMenu({ election, orgUuid, onAction }) {
     {
       label: 'Supprimer',
       icon: Trash2,
-      show: ['draft', 'pending', 'cancelled'].includes(election.status),
+      // Autorisé tant qu'aucun vote n'a été reçu, indépendamment du statut.
+      show: (election.statistics?.total_votes ?? election.votes_count ?? 0) === 0,
       onClick: () => { onAction('delete', election); close(); },
       className: 'text-red-600',
     },
@@ -203,7 +207,6 @@ function ActionMenu({ election, orgUuid, onAction }) {
 // ── Page principale ───────────────────────────────────────────────
 
 export default function Scrutins() {
-  const navigate = useNavigate();
   const { org } = useOrg();
 
   const [elections, setElections] = useState([]);

@@ -29,6 +29,7 @@ import VoteSuccess from './pages/VoteSuccess';
 
 import Checkout from './pages/Checkout';
 import PaymentSuccess from './pages/PaymentSuccess';
+import PaymentSuccessMultiple from './pages/PaymentSuccessMultiple';
 import CandidateApplicationPage from './pages/CandidateApplicationPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import VerifyEmailPage from './pages/auth/Verifyemailpage';
@@ -43,6 +44,11 @@ import HomeElection from './pages/votePublic/HomeElection';
 import PortailVote from './pages/votePublic/PortailVote';
 import CandidateDetailsPublic from './pages/votePublic/CandidateDetailsPublic';
 import VotePayment from './pages/votePublic/VotePayment';
+import VotePaymentMultiple from './pages/votePublic/VotePaymentMultiple';
+import ElectionResultats from './pages/votePublic/ElectionResultats';
+import ElectionsOpenForCandidacy from './pages/votePublic/ElectionsOpenForCandidacy';
+import ElectionPage from './pages/votePublic/ElectionPage';
+import ElectionCategoryVotePage from './pages/votePublic/ElectionCategoryVotePage';
 
 // ── Super Admin ───────────────────────────────────────────────────
 import DashboardSuperHome from './pages/dashboards/DashboardSuperAdmin/DashboardSuperHome';
@@ -67,10 +73,12 @@ import Parametres from './pages/dashboards/DashboardAdminOrg/Parametres';
 import SubscriptionPage from './pages/dashboards/DashboardAdminOrg/SubscriptionPage';
 import Electeurs from './pages/dashboards/DashboardAdminOrg/Electeurs';
 import Jurys from './pages/dashboards/DashboardAdminOrg/Jurys';
+import Equipe from './pages/dashboards/DashboardAdminOrg/Equipe';
 import Resultats from './pages/dashboards/DashboardAdminOrg/Resultats';
 import Revenus from './pages/dashboards/DashboardAdminOrg/Revenus';
 import Scrutins from './pages/dashboards/DashboardAdminOrg/Scrutins';
 import CreateScrutin from './pages/dashboards/DashboardAdminOrg/CreateScrutin';
+import EditScrutin from './pages/dashboards/DashboardAdminOrg/EditScrutin';
 import Corbeille from './pages/dashboards/DashboardAdminOrg/Corbeille';
 
 // ── Candidat ──────────────────────────────────────────────────────
@@ -87,7 +95,11 @@ import ParametresJury from './pages/dashboards/DashboardJury/ParametresJury';
 import CandidatsJury from './pages/dashboards/DashboardJury/CandidatsJury';
 import EvaluationsJury from './pages/dashboards/DashboardJury/EvaluationsJury';
 import ResultatsJury from './pages/dashboards/DashboardJury/ResultatsJury';
-import CentersDetails from './components/dashboard/CentersDetails';
+import DashboardManager from './pages/dashboards/DashboardManager/DashboardManager';
+import ScrutinsManager from './pages/dashboards/DashboardManager/ScrutinsManager';
+import CandidatsManager from './pages/dashboards/DashboardManager/CandidatsManager';
+import ResultatsManager from './pages/dashboards/DashboardManager/ResultatsManager';
+import ParametresManager from './pages/dashboards/DashboardManager/ParametresManager';
 
 import './App.css';
 import { ROLES } from '@utils/roles';
@@ -97,7 +109,7 @@ import { ROLES } from '@utils/roles';
 // ─────────────────────────────────────────────────────────────────
 
 // Préfixes de routes où la Navbar publique est cachée
-const NO_NAVBAR_PREFIXES = ['/super-admin', '/admin', '/jury', '/org', '/candidat', '/vote'];
+const NO_NAVBAR_PREFIXES = ['/super-admin', '/admin', '/jury', '/manager', '/org', '/candidat', '/vote'];
 
 // ─────────────────────────────────────────────────────────────────
 // APP
@@ -135,8 +147,12 @@ function AppRoutes() {
                     <Route path="pricing" element={<TarificationPage />} />
 
                     <Route path="elections" element={<HomeElection />} />
+                    <Route path="elections/open-for-candidacy" element={<ElectionsOpenForCandidacy />} />
                     <Route path="elections/:electionUuid" element={<PortailVote />} />
+                    <Route path="elections/:electionUuid/results" element={<ElectionResultats />} />
                     <Route path="elections/:electionUuid/candidates" element={<CandidateApplicationPage />} />
+                    <Route path="elections/:electionUuid/categories" element={<ElectionPage />} />
+                    <Route path="elections/:electionUuid/categories/:categoryUuid" element={<ElectionCategoryVotePage />} />
                     <Route path="details/candidat/election/:electionUuid/candidate/:candidateUuid" element={<CandidateDetailsPublic />} />
 
                     <Route path="vote" element={<AccesScrutin />} />
@@ -148,8 +164,10 @@ function AppRoutes() {
                     <Route path="vote/success/:electionUuid" element={<VoteSuccess />} />
                     <Route path="vote/validate/:id" element={<VoteValidation />} />
                     <Route path="vote/payement/:electionUuid/candidate/:candidateUuid" element={<VotePayment />} />
+                    <Route path="vote/payement-multiple/:electionUuid" element={<VotePaymentMultiple />} />
                     <Route path="checkout" element={<Checkout />} />
                     <Route path="vote/payment-success/:electionUuid/candidate/:candidateUuid" element={<PaymentSuccess />} />
+                    <Route path="vote/payment-success-multiple/:electionUuid" element={<PaymentSuccessMultiple />} />
 
                     <Route path="auth/verify-email" element={<VerifyEmailPage />} />
                     <Route path="auth/reset-password" element={<ResetPasswordPage />} />
@@ -199,7 +217,7 @@ function AppRoutes() {
                 <Route
                     path="/org/:orgUuid"
                     element={
-                        <ProtectedRoute requiredRoles={[ROLES.ADMIN_ORG]}>
+                        <ProtectedRoute requiredRoles={[ROLES.ADMIN_ORG, ROLES.SUPER_ADMIN]}>
                             <DashboardLayout />
                         </ProtectedRoute>
                     }
@@ -209,8 +227,10 @@ function AppRoutes() {
                     <Route path="candidats" element={<Candidats />} />
                     <Route path="electeurs" element={<Electeurs />} />
                     <Route path="jurys" element={<Jurys />} />
+                    <Route path="equipe" element={<Equipe />} />
                     <Route path="scrutins" element={<Scrutins />} />
                     <Route path="CreateScrutin" element={<CreateScrutin />} />
+                    <Route path="scrutins/:uuid/edit" element={<EditScrutin />} />
                     <Route path="results" element={<Resultats />} />
                     <Route path="revenus" element={<Revenus />} />
                     <Route path="corbeille" element={<Corbeille />} />
@@ -230,9 +250,25 @@ function AppRoutes() {
                     <Route index element={<DashboardJury />} />
                     <Route path="scrutins" element={<ScrutinsJury />} />
                     <Route path="settings" element={<ParametresJury />} />
-                    <Route path="candidats/:id?" element={<CandidatsJury />} />
-                    <Route path="candidats/:id/evaluations/:id" element={<EvaluationsJury />} />
-                    <Route path="results/:id?" element={<ResultatsJury />} />
+                    <Route path="candidats/:electionId?" element={<CandidatsJury />} />
+                    <Route path="candidats/:electionId/evaluations/:candidateId" element={<EvaluationsJury />} />
+                    <Route path="results/:electionId?" element={<ResultatsJury />} />
+                </Route>
+
+                {/* ── GESTIONNAIRE D'ÉLECTION ─────────────────────── */}
+                <Route
+                    path="/manager"
+                    element={
+                        <ProtectedRoute requiredRoles={[ROLES.MANAGER, ROLES.SUPER_ADMIN]}>
+                            <DashboardLayout />
+                        </ProtectedRoute>
+                    }
+                >
+                    <Route index element={<DashboardManager />} />
+                    <Route path="scrutins" element={<ScrutinsManager />} />
+                    <Route path="candidats/:electionId?" element={<CandidatsManager />} />
+                    <Route path="results/:electionId?" element={<ResultatsManager />} />
+                    <Route path="settings" element={<ParametresManager />} />
                 </Route>
 
                 {/* ── CANDIDAT ─────────────────────────────────── */}
@@ -249,7 +285,6 @@ function AppRoutes() {
                     <Route path="results/:id?" element={<ResultatsCandidat />} />
                     <Route path="candidatures" element={<Candidatures />} />
                     <Route path="settings" element={<ParametresCandidat />} />
-                    <Route path="results/:id/centers" element={<CentersDetails />} />
                 </Route>
 
                 {/* ── FALLBACK ─────────────────────────────────── */}

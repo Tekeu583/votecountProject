@@ -226,7 +226,11 @@ class User extends Authenticatable
     public function getAvatarUrlAttribute(): ?string
     {
         if ($this->photo) {
-            return asset('storage/'.$this->photo);
+            // Certains comptes de démo/seed stockent une URL externe complète
+            // (UserFactory) plutôt qu'un chemin relatif de stockage local.
+            return str_starts_with($this->photo, 'http')
+                ? $this->photo
+                : asset('storage/'.$this->photo);
         }
 
         return 'https://ui-avatars.com/api/?name='.urlencode($this->full_name).'&background=random';

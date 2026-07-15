@@ -38,6 +38,12 @@ class ElectionDTO extends BaseDTO
         public ?bool $fraudDetectionEnabled = true,
         public ?string $timezone = 'Africa/Douala',
 
+        //  Vote pondéré (vote_type = weighted)
+        // Nullable : absent de la requête => le défaut DB (1.0 / 0) s'applique,
+        // ElectionService ne doit pas écraser une valeur existante avec null.
+        public ?float $publicWeight = null,
+        public ?float $juryWeight = null,
+
     ) {}
 
     public static function fromRequest(Request $request, ?string $bannerPath = null): self
@@ -67,7 +73,7 @@ class ElectionDTO extends BaseDTO
             votePrice: (float) $request->input('vote_price', 0),
             settings: $request->input('settings'),
 
-            // ── Phase de candidature ──────────────────────────────
+            // -- Phase de candidature ---------------------
             acceptsCandidates: $request->boolean('accepts_candidates', false),
             candidacyStartAt: $request->input('candidacy_start_at')
                 ? Carbon::parse($request->input('candidacy_start_at'))
@@ -77,6 +83,9 @@ class ElectionDTO extends BaseDTO
                 : null,
             maxCandidates: (int) $request->input('max_candidates', 0),
             hasCategories: $request->boolean('has_categories', false),
+
+            publicWeight: $request->has('public_weight') ? (float) $request->input('public_weight') : null,
+            juryWeight: $request->has('jury_weight') ? (float) $request->input('jury_weight') : null,
         );
     }
 }

@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class AuthController extends BaseApiController
@@ -36,7 +37,7 @@ class AuthController extends BaseApiController
      */
     private function loadUserWithPermissions(mixed $user): void
     {
-        $user->load('roles.permissions','organizations');
+        $user->load('roles.permissions', 'organizations', 'elections');
     }
 
     /**
@@ -174,6 +175,75 @@ class AuthController extends BaseApiController
         $request->session()->regenerateToken();
 
         return $this->success(null, 'Logout successful');
+    }
+
+    /**
+     * @OA\Patch(
+     *     path="/api/v1/auth/profile",
+     *     summary="Update authenticated user's profile",
+     *     tags={"Authentication"},
+     *     security={{"sanctum":{}}},
+     *
+     *     @OA\Response(response=200, description="Profile updated successfully")
+     * )
+     */
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'first_name' => ['sometimes', 'string', 'max:255'],
+            'last_name' => ['sometimes', 'string', 'max:255'],
+            'phone' => ['sometimes', 'nullable', 'string', 'max:20'],
+            'photo' => ['sometimes', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
+        ]);
+
+        $user = $request->user();
+
+        if ($request->hasFile('photo')) {
+            // Ne supprime l'ancien fichier que s'il s'agit bien d'un chemin de
+            // stockage local — certains comptes de démo/seed ont une URL
+            // externe complète en `photo`, jamais présente sur ce disque.
+            if ($user->photo && ! str_starts_with($user->photo, 'http')) {
+                Storage::disk('public')->delete($user->photo);
+            }
+
+            $file = $request->file('photo');
+            $filename = Str::uuid().'.'.$file->getClientOriginalExtension();
+            $validated['photo'] = $file->storeAs('users/photos', $filename, 'public');
+        }
+
+        $updated = $this->authService->updateProfile($user, $validated);
+
+        return $this->success(new UserResource($updated), 'Profil mis à jour avec succès.');
+    }
+
+    /**
+     * @OA\Patch(
+     *     path="/api/v1/auth/password",
+     *     summary="Update authenticated user's password",
+     *     tags={"Authentication"},
+     *     security={{"sanctum":{}}},
+     *
+     *     @OA\Response(response=200, description="Password updated successfully")
+     * )
+     */
+    public function updatePassword(Request $request): JsonResponse
+    {
+        $request->validate([
+            'current_password' => ['required', 'string'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        $changed = $this->authService->changePassword(
+            $request->user(),
+            $request->input('current_password'),
+            $request->input('password')
+        );
+
+        if (! $changed) {
+            return $this->error('Mot de passe actuel incorrect.', null, 422);
+        }
+
+        return $this->success(null, 'Mot de passe mis à jour avec succès.');
     }
 
     /**

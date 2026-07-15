@@ -105,6 +105,8 @@ class ElectionService
             'candidacy_end_at'       => $dto->candidacyEndAt,
             'max_candidates'         => $dto->maxCandidates,
             'status'                 => ElectionStatus::DRAFT->value,
+            'public_weight'          => $dto->publicWeight ?? 1.0,
+            'jury_weight'            => $dto->juryWeight ?? 0.0,
         ]);
     }
 
@@ -176,6 +178,8 @@ class ElectionService
             'candidacy_end_at'   => $dto->candidacyEndAt,
             'max_candidates'     => $dto->maxCandidates,
             'has_categories'     => $dto->hasCategories,
+            'public_weight'      => $dto->publicWeight ?? 1.0,
+            'jury_weight'        => $dto->juryWeight ?? 0.0,
         ]);
 
         // Create settings
@@ -246,6 +250,8 @@ class ElectionService
             'candidacy_start_at'  => $dto->candidacyStartAt   ?? $election->candidacy_start_at,
             'candidacy_end_at'    => $dto->candidacyEndAt     ?? $election->candidacy_end_at,
             'max_candidates'      => $dto->maxCandidates      ?? $election->max_candidates,
+            'public_weight'       => $dto->publicWeight       ?? $election->public_weight,
+            'jury_weight'         => $dto->juryWeight         ?? $election->jury_weight,
         ]);
 
         $election->save();

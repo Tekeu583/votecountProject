@@ -17,6 +17,7 @@ export const ROLES = {
     SUPER_ADMIN: 'super_admin',
     ADMIN_ORG:   'organization_owner',
     JURY:        'jury',
+    MANAGER:     'manager',
     CANDIDAT:    'candidat',
     USER:        'user',
 };
@@ -30,6 +31,19 @@ export const ROLE_PRIORITY = [
     ROLES.SUPER_ADMIN,
     ROLES.ADMIN_ORG,
     ROLES.JURY,
+    ROLES.MANAGER,
     ROLES.CANDIDAT,
     ROLES.USER,
 ];
+
+/**
+ * Libellés lisibles des rôles — utilisé par le RoleSwitcher (Sidebar).
+ */
+export const ROLE_LABELS = {
+    [ROLES.SUPER_ADMIN]: 'Super Admin',
+    [ROLES.ADMIN_ORG]: 'Organisation',
+    [ROLES.JURY]: 'Jury',
+    [ROLES.MANAGER]: 'Gestionnaire',
+    [ROLES.CANDIDAT]: 'Candidat',
+    [ROLES.USER]: 'Votant',
+};

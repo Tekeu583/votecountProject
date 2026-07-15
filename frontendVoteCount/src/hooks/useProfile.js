@@ -31,6 +31,7 @@ export default function useProfile() {
     const [loading, setLoading]               = useState(true);
     const [savingProfile, setSavingProfile]   = useState(false);
     const [savingPassword, setSavingPassword] = useState(false);
+    const [savingPhoto, setSavingPhoto]       = useState(false);
 
     // Hydratation depuis le Context (pas d'appel réseau supplémentaire)
     useEffect(() => {
@@ -64,6 +65,28 @@ export default function useProfile() {
         } finally {
             toastDismiss(t);
             setSavingProfile(false);
+        }
+    };
+
+    /**
+     * Remplace la photo de profil — upload immédiat au choix du fichier,
+     * indépendant du bouton "Enregistrer" de ProfileForm.
+     */
+    const updatePhoto = async (file) => {
+        setSavingPhoto(true);
+        const t = toastLoading('Envoi de la photo...');
+        try {
+            const payload = new FormData();
+            payload.append('photo', file);
+            await apiUpdateProfile(payload);
+            await refreshUser();
+            toastSuccess('Photo de profil mise à jour');
+        } catch (err) {
+            const message = err.response?.data?.message || 'Erreur lors de l\'envoi de la photo';
+            toastError(message);
+        } finally {
+            toastDismiss(t);
+            setSavingPhoto(false);
         }
     };
 
@@ -102,8 +125,10 @@ export default function useProfile() {
         loading,
         savingProfile,
         savingPassword,
+        savingPhoto,
         isDirty,
         updateProfile,
         updatePassword,
+        updatePhoto,
     };
 }

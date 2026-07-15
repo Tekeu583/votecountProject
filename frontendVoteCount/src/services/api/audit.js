@@ -12,7 +12,7 @@ export const auditApi = {
      * Liste les logs d'audit.
      * Permission requise : 'view audit logs'
      *
-     * @param {Object} params - { page, limit, user_id, action, model_type, date_from, date_to }
+     * @param {Object} params - { organization_uuid, page, per_page, user_id, action, entity_type, date_from, date_to, search }
      */
     getAll: (params = {}) =>
         api.get(`${V1}/audit-logs`, { params }),

@@ -34,4 +34,17 @@ export const paymentsApi = {
 
     // Statut subscription
     getSubscriptionStatus: () => api.get(`${V1}/subscriptions/status`),
+
+    /**
+     * GET /api/v1/payments/transactions
+     * Historique des transactions d'une organisation (Revenus).
+     * @param {Object} params - { organization_uuid, page, per_page, status, type, date_from, date_to }
+     */
+    getTransactions: (params = {}) => api.get(`${V1}/payments/transactions`, { params }),
+
+    /**
+     * GET /api/v1/payments/transactions/stats
+     * @param {Object} params - { organization_uuid, date_from, date_to }
+     */
+    getTransactionStats: (params = {}) => api.get(`${V1}/payments/transactions/stats`, { params }),
 };

@@ -70,4 +70,39 @@ class VoteException extends CustomException
     {
         return new self("Comportement suspect détecté (score: {$score})", 403);
     }
+
+    public static function duplicateCandidates(): self
+    {
+        return new self('Un même candidat ne peut pas apparaître plusieurs fois dans un même vote', 422);
+    }
+
+    public static function maxChoicesExceeded(int $max): self
+    {
+        return new self("Vous ne pouvez pas sélectionner plus de {$max} candidat(s)", 422);
+    }
+
+    public static function singleVoteRequiresOneCandidate(): self
+    {
+        return new self('Ce vote ne permet de choisir qu\'un seul candidat', 422);
+    }
+
+    public static function invalidRankPosition(): self
+    {
+        return new self('La position de classement est requise et doit être un entier positif pour chaque candidat classé', 422);
+    }
+
+    public static function invalidRanking(): self
+    {
+        return new self('Le classement doit être une séquence continue commençant à 1, sans doublon ni trou', 422);
+    }
+
+    public static function invalidScore(): self
+    {
+        return new self('Le score doit être compris entre 0 et 10', 422);
+    }
+
+    public static function amountRequiredPerCandidate(): self
+    {
+        return new self('Vous devez indiquer un montant supérieur à 0 pour chaque candidat sélectionné', 422);
+    }
 }

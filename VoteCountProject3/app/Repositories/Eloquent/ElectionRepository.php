@@ -187,6 +187,10 @@ class ElectionRepository extends BaseRepository implements ElectionRepositoryInt
             $query->whereDate('created_at', $request->date);
         }
 
+        if ($request->filled('vote_type')) {
+            $query->where('vote_type', $request->vote_type);
+        }
+
         return $query
             ->with([
                 'organization.subscriptionPlan',

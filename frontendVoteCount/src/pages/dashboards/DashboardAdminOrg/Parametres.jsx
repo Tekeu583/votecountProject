@@ -1,7 +1,12 @@
 import SettingsPage from '../DashboardSuperAdmin/SettingsPage'
+import OrganizationSettingsForm from './OrganizationSettingsForm'
+
 function Parametres() {
   return (
-    <SettingsPage/>
+    <div className="space-y-6">
+      <SettingsPage />
+      <OrganizationSettingsForm />
+    </div>
   )
 }
 

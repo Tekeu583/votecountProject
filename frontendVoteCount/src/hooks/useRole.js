@@ -6,7 +6,7 @@
 
 import { useCallback } from 'react';
 import { useAuth } from '@hooks/useAuth';
-import { getPrimaryRole } from '@utils/roleRoutes';
+import { getPrimaryRole, getAvailableRoles } from '@utils/roleRoutes';
 
 export function useRole() {
     const { user, authenticated } = useAuth();
@@ -18,7 +18,16 @@ export function useRole() {
     const primaryRole = getPrimaryRole(user);
 
     /**
+     * Tous les dashboards accessibles par l'utilisateur (pas seulement le
+     * rôle primaire) — source du RoleSwitcher.
+     */
+    const availableRoles = getAvailableRoles(user);
+
+    /**
      * Vérifie si l'utilisateur possède AU MOINS UN des rôles fournis.
+     * Basé sur getAvailableRoles() — pas uniquement user.roles (Spatie) —
+     * pour reconnaître les rôles contextuels (ex: jury via election_user,
+     * jamais synchronisé avec les rôles globaux).
      *
      * @param {string | string[]} roles - Un rôle ou un tableau de rôles
      * @returns {boolean}
@@ -30,7 +39,7 @@ export function useRole() {
     const hasRole = useCallback((roles) => {
         if (!authenticated || !user) return false;
 
-        const userRoles = Array.isArray(user.roles) ? user.roles : [];
+        const userRoles = getAvailableRoles(user);
         const required = Array.isArray(roles) ? roles : [roles];
 
         return required.some((role) => userRoles.includes(role));
@@ -45,7 +54,7 @@ export function useRole() {
     const hasAllRoles = useCallback((roles) => {
         if (!authenticated || !user) return false;
 
-        const userRoles = Array.isArray(user.roles) ? user.roles : [];
+        const userRoles = getAvailableRoles(user);
         const required = Array.isArray(roles) ? roles : [roles];
 
         return required.every((role) => userRoles.includes(role));
@@ -62,6 +71,7 @@ export function useRole() {
 
     return {
         primaryRole,
+        availableRoles,
         hasRole,
         hasAllRoles,
         isRole,

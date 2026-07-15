@@ -24,6 +24,12 @@ class ElectionResource extends JsonResource
             'election_mode' => $this->election_mode,
             'voter_code' => $this->when(
                 $request->user()
+                    // Nécessaire pour éviter un lazy load — Model::shouldBeStrict()
+                    // (AppServiceProvider) interdit le lazy loading dans tous les
+                    // environnements, pas seulement local. Si 'organization' n'a
+                    // pas été eager-loadée par l'appelant, ce champ est simplement
+                    // omis plutôt que de planter (comportement déjà "opt-in" via when()).
+                    && $this->relationLoaded('organization')
                     && $this->organization
                     && $this->organization->users()
                     ->where('user_id', $request->user()->id)
@@ -58,6 +64,10 @@ class ElectionResource extends JsonResource
 
             'vote_price' => $this->vote_price,
             'currency' => $this->currency,
+
+            // ── Vote pondéré (vote_type = weighted) ──────────────
+            'public_weight' => $this->when($this->vote_type->value === 'weighted', $this->public_weight),
+            'jury_weight' => $this->when($this->vote_type->value === 'weighted', $this->jury_weight),
 
             // ── Phase de candidature
             'accepts_candidates'    => $this->accepts_candidates,

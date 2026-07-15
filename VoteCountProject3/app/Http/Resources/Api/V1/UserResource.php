@@ -16,7 +16,7 @@ class UserResource extends JsonResource
             'full_name' => $this->full_name,
             'email' => $this->email,
             'phone' => $this->phone,
-            'avatar' => $this->avatar_url,
+            'photo' => $this->avatar_url,
             'gender' => $this->gender,
             'country' => $this->country,
             'city' => $this->city,
@@ -43,6 +43,17 @@ class UserResource extends JsonResource
                     'logo'   => $org->logo_url ?? $org->logo,
                     'status' => $org->status,
                     'role'   => $org->pivot->role_slug,   // owner | admin | member | viewer
+                ]);
+            }, []),
+
+            // Rôles contextuels par élection (ex: jury) — distincts des rôles
+            // globaux Spatie ci-dessus. Source de vérité pour le switcher de
+            // dashboard : un juré n'a pas forcément le rôle Spatie "jury".
+            'elections' => $this->whenLoaded('elections', function () {
+                return $this->elections->map(fn($election) => [
+                    'uuid'  => $election->uuid,
+                    'title' => $election->title,
+                    'role'  => $election->pivot->role_slug,   // jury | creator | admin | manager | observer
                 ]);
             }, []),
 

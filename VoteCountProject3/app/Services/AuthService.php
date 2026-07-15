@@ -54,6 +54,11 @@ class AuthService implements AuthServiceInterface
         // Assign default role using RoleService
         RoleService::assignDefaultRole($user, 'user');
 
+        // Un candidat peut avoir postulé/été ajouté avant de créer son
+        // compte VoteCount — le lier rétroactivement à ses candidatures
+        // existantes (même email) pour qu'il accède à son espace candidat.
+        CandidateAccountLinkService::linkExistingCandidaciesToUser($user);
+
         // Generate email verification token
         $this->sendEmailVerification($user);
 
@@ -260,6 +265,23 @@ class AuthService implements AuthServiceInterface
         return true;
     }
 
+    public function updateProfile(User $user, array $data): User
+    {
+        return $this->userRepository->update($user->id, $data);
+    }
+
+    public function changePassword(User $user, string $currentPassword, string $newPassword): bool
+    {
+        if (! Hash::check($currentPassword, $user->password)) {
+            return false;
+        }
+
+        $this->userRepository->update($user->id, [
+            'password' => Hash::make($newPassword),
+        ]);
+
+        return true;
+    }
 
     protected function assignDefaultRole(User $user): void
     {

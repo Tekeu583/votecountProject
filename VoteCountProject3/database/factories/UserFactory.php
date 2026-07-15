@@ -26,6 +26,8 @@ class UserFactory extends Factory
             'city' => $this->faker->city(),
             'status' => 'active',
             'email_verified_at' => now(),
+            'phone_verified_at' => null,
+            'last_login_at' => null,
             'locale' => 'fr',
             'timezone' => 'UTC',
         ];

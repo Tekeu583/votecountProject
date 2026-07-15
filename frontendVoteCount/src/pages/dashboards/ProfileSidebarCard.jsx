@@ -1,10 +1,11 @@
-import { Camera } from "lucide-react";
+import { Camera, LoaderCircle } from "lucide-react";
 import PropTypes from "prop-types";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import toast from "react-hot-toast";
 
-export default function ProfileSidebarCard({ profile }) {
+export default function ProfileSidebarCard({ profile, onPhotoChange, saving }) {
     const fileInputRef = useRef(null);
+    const [preview, setPreview] = useState(null);
 
     const handleClick = () => {
         fileInputRef.current.click();
@@ -12,30 +13,38 @@ export default function ProfileSidebarCard({ profile }) {
 
     const handleFileChange = (e) => {
         const file = e.target.files[0];
+        e.target.value = '';
         if (!file) return;
 
-        console.log("Fichier sélectionné :", file);
+        if (!file.type.startsWith('image/')) {
+            toast.error('Le fichier sélectionné doit être une image.');
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error('La photo ne doit pas dépasser 5 Mo.');
+            return;
+        }
 
-        // Exemple de notification
-        setTimeout(() => {
-            toast.success("Photo mise à jour !");
-        }, 1500);
+        setPreview(URL.createObjectURL(file));
+        onPhotoChange(file);
     };
+
+    const displayedPhoto = preview || profile.photo;
 
     return (
         <div className="bg-[var(--color-background-white)] p-6 rounded-[var(--radius-md)] shadow">
             <div className="flex flex-col items-center">
 
                 <div className="relative">
-                    <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center text-xl">
-                        {profile.photo ? (
+                    <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center text-xl overflow-hidden">
+                        {displayedPhoto ? (
                             <img
-                                src={profile.photo}
+                                src={displayedPhoto}
                                 alt="Profile"
                                 className="w-full h-full object-cover rounded-full"
                             />
                         ) : (
-                            profile.first_name?.[0] || "User"
+                            profile.first_name?.[0] || "?"
                         )}
                     </div>
 
@@ -43,9 +52,10 @@ export default function ProfileSidebarCard({ profile }) {
                     <button
                         type="button"
                         onClick={handleClick}
-                        className="absolute bottom-0 right-0 bg-[var(--color-primary)] text-[var(--color-white)] p-2 rounded-full"
+                        disabled={saving}
+                        className="absolute bottom-0 right-0 bg-[var(--color-primary)] text-[var(--color-white)] p-2 rounded-full disabled:opacity-70"
                     >
-                        <Camera size={14} />
+                        {saving ? <LoaderCircle size={14} className="animate-spin" /> : <Camera size={14} />}
                     </button>
 
                     {/* Input file caché */}
@@ -59,11 +69,11 @@ export default function ProfileSidebarCard({ profile }) {
                 </div>
 
                 <h2 className="mt-3 font-semibold">
-                    {profile.first_name || "Tekeu"} {profile.last_name || "Arsene"}
+                    {profile.first_name} {profile.last_name}
                 </h2>
 
                 <p className="text-sm text-gray-500">
-                    {profile.email || "arsene@gmail.com"}
+                    {profile.email}
                 </p>
             </div>
         </div>
@@ -76,13 +86,7 @@ ProfileSidebarCard.propTypes = {
         last_name: PropTypes.string,
         email: PropTypes.string,
         photo: PropTypes.string,
-    })
+    }),
+    onPhotoChange: PropTypes.func.isRequired,
+    saving: PropTypes.bool,
 };
-
-ProfileSidebarCard.defaultProps = {
-    profile: {
-        firstName: "Tekeu",
-        lastName: "Arsene",
-        email: "arsene@gmail.com"
-    }
-}

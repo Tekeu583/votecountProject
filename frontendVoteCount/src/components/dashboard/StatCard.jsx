@@ -12,7 +12,7 @@ export default function StatCard({
 }) {
     return (
         <AnimatedItem delay={delay}>
-            <div className={`bg-[var(--color-white)] min-h-[140px] md:min-h-[150px] p-5 rounded-[var(--radius-md)] shadow-[var(--shadow-md)] border-l-4 border-${borderColor} relative overflow-hidden flex flex-col`}>
+            <div className={`bg-[var(--color-white)] min-h-[140px] max-w-[350px] md:min-h-[150px] p-5 rounded-[var(--radius-md)] shadow-[var(--shadow-md)] border-l-4 border-${borderColor} relative overflow-hidden flex flex-col`}>
 
                 <div className="flex items-center gap-3">
                     {Icon && (<div className={`p-2 rounded-[var(--radius-md)] bg-[var(--color-white)] text-[var(--color-primary)] flex-shrink-0 ${color}`}>

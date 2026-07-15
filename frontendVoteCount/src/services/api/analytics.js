@@ -7,7 +7,7 @@ export const analyticsApi = {
    * Tableau de bord analytique global.
    * Permission requise : 'view analytics'
    *
-   * @param {Object} params - { current_organization?: uuid }
+   * @param {Object} params - { organization_uuid? }
    */
     dashboard: (params = {}) =>
         api.get(`${V1}/analytics/dashboard`, { params }),
