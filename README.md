@@ -209,6 +209,10 @@ php artisan serve
 # Terminal 2 — Serveur WebSocket (résultats en temps réel)
 cd backend
 php artisan reverb:start
+
+php artisan queue:work
+
+php artisan shedule:work
 ```
 
 ```bash
