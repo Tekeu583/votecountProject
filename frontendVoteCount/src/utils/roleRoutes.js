@@ -95,6 +95,13 @@ export const getRoleFromPath = (pathname) => {
     return null;
 };
 export const getRoleDefaultRoute = (role) => {
+    // ROLES.USER ("Votant") n'a pas de dashboard dédié — aucune route /voter
+    // n'existe dans App.jsx (menuByRole['user'].base='/voter' est un reliquat
+    // non implémenté). Sans ce cas particulier, un votant fraîchement vérifié
+    // était envoyé vers une route inexistante, rattrapée par le fallback "*"
+    // de App.jsx qui le renvoyait à l'accueil après un aller-retour parasite.
+    if (role === ROLES.USER) return '/';
+
     const roleConfig = menuByRole[role];
 
     if (!roleConfig) return '/';

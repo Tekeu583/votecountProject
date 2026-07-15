@@ -6,7 +6,9 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Queue\Events\JobExceptionOccurred;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -52,6 +54,17 @@ class AppServiceProvider extends ServiceProvider
                 }
             });
         }
+        // Postgres laisse une transaction "avortée" (25P02) sur la connexion
+        // tant qu'aucun ROLLBACK explicite n'est fait — un worker de queue
+        // garde la même connexion entre chaque job, donc une seule requête
+        // en échec silencieux (ex: event() catché en interne) contaminait
+        // TOUS les jobs suivants du même process (dont l'envoi d'OTP, d'où
+        // les "code invalide" alors que l'email n'était jamais parti).
+        // On force une reconnexion propre dès qu'un job lève une exception.
+        Event::listen(function (JobExceptionOccurred $event) {
+            DB::disconnect();
+        });
+
         // Pagination avec Tailwind
         Paginator::useTailwind();
 

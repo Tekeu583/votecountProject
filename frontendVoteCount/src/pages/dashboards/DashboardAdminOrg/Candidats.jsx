@@ -8,7 +8,7 @@ import { useDebounce } from '@hooks/useDebounce';
 import toast from 'react-hot-toast';
 import CandidatModal from './CandidatModal';
 import TextInput from '@components/ui/TextInput';
-import { candidatesApi, electionsApi } from '@services/api';
+import { candidatesApi, electionsApi, organizationsApi } from '@services/api';
 import { useOrg } from '@hooks/useOrg';
 import { FadeLoader } from 'react-spinners';
 
@@ -41,7 +41,7 @@ export default function Candidats() {
   // Filtres
   const [searchTerm, setSearchTerm] = useState('');
 
-  const debouncedSearch = useDebounce(searchTerm, 4000);
+  const debouncedSearch = useDebounce(searchTerm, 400);
   const [statusFilter, setStatusFilter] = useState('all');
   const [electionFilter, setElectionFilter] = useState('all');
 
@@ -71,72 +71,40 @@ export default function Candidats() {
     fetch();
   }, [org?.uuid]);
 
+  // Un seul appel serveur, paginé et filtré côté backend (organizationsApi.
+  // getCandidates) — plutôt qu'un fan-out d'une requête par élection (jusqu'à
+  // 20 requêtes HTTP en parallèle rien que pour afficher 15 lignes), qui
+  // rendait la page lente à charger dès que l'organisation avait plusieurs
+  // élections.
   const loadCandidates = useCallback(async (p = 1) => {
     if (!org?.uuid) return;
-    if (elections.length === 0) return;
 
     setLoading(true);
     try {
-      if (electionFilter === 'all') {
-        const electionsToFetch = elections.slice(0, 20);
+      const res = await organizationsApi.getCandidates(org.uuid, {
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        election_uuid: electionFilter !== 'all' ? electionFilter : undefined,
+        search: debouncedSearch || undefined,
+        page: p,
+        per_page: PER_PAGE,
+      });
 
-        const results = await Promise.all(
-          electionsToFetch.map(election =>
-            candidatesApi.getAll(election.uuid, {
-              status: statusFilter !== 'all' ? statusFilter : undefined,
-              search: debouncedSearch || undefined,
-              per_page: 100,
-            }).then(res => (res.data?.data ?? []).map(c => ({
-              ...c,
-              electionTitle: election.title,
-              electionUuid: election.uuid,
-            }))).catch(() => [])
-          )
-        );
-
-        const all = results.flat();
-        const filtered = all.filter(c =>
-          !debouncedSearch ||
-          c.full_name?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-          c.email?.toLowerCase().includes(debouncedSearch.toLowerCase())
-        );
-
-        setTotal(filtered.length);
-        setLastPage(Math.max(1, Math.ceil(filtered.length / PER_PAGE)));
-        setCandidates(filtered.slice((p - 1) * PER_PAGE, p * PER_PAGE));
-
-      } else {
-        const res = await candidatesApi.getAll(electionFilter, {
-          status: statusFilter !== 'all' ? statusFilter : undefined,
-          search: debouncedSearch || undefined,
-          page: p,
-          per_page: PER_PAGE,
-        });
-
-        const electionTitle = elections.find(e => e.uuid === electionFilter)?.title ?? '—';
-        const list = (res.data?.data ?? []).map(c => ({
-          ...c,
-          electionTitle,
-          electionUuid: electionFilter,
-        }));
-
-        setCandidates(list);
-        setTotal(res.data?.meta?.total ?? list.length);
-        setLastPage(res.data?.meta?.last_page ?? 1);
-      }
+      setCandidates(res.data?.data ?? []);
+      setTotal(res.data?.meta?.total ?? 0);
+      setLastPage(res.data?.meta?.last_page ?? 1);
     } catch (err) {
       toast.error(err.response?.data?.message ?? 'Erreur de chargement.');
       setCandidates([]);
     } finally {
       setLoading(false);
     }
-  }, [org?.uuid, electionFilter, statusFilter, debouncedSearch, elections]);
+  }, [org?.uuid, electionFilter, statusFilter, debouncedSearch]);
 
   useEffect(() => {
-    if (!electionFilter) return;
+    if (!org?.uuid) return;
     setPage(1);
     loadCandidates(1);
-  }, [electionFilter, statusFilter, debouncedSearch, elections, loadCandidates]);
+  }, [org?.uuid, electionFilter, statusFilter, debouncedSearch, loadCandidates]);
 
   useEffect(() => {
     if (!electionFilter || page === 1) return;
@@ -168,7 +136,7 @@ export default function Candidats() {
   const handleDelete = async (candidate) => {
     if (!window.confirm(`Supprimer ${candidate.full_name} ?`)) return;
     try {
-      await candidatesApi.delete(candidate.electionUuid, candidate.uuid);
+      await candidatesApi.delete(candidate.election?.uuid, candidate.uuid);
       toast.success('Candidat supprimé.');
       loadCandidates(page);
     } catch (err) {
@@ -333,7 +301,7 @@ export default function Candidats() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-[var(--color-gray)]">{c.electionTitle}</td>
+                    <td className="px-4 py-3 text-[var(--color-gray)]">{c.election?.title}</td>
                     <td className="px-4 py-3 text-[var(--color-gray)] hidden md:table-cell">
                       {c.created_at ? new Date(c.created_at).toLocaleDateString('fr-FR') : '—'}
                     </td>

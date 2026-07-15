@@ -107,12 +107,9 @@ export default function VerifyEmailPage() {
                 const res = await verifyEmailLink(tokenFromUrl, email);
                 const user = res.data?.data?.user;
                 if (user) {
-                    setSuccess('Email vérifié ! Redirection...');
                     setAuth(user);
                     refreshUser?.();
-                    setTimeout(() => {
-                        navigate(getRoleDefaultRoute(getPrimaryRole(user)), { replace: true });
-                    }, 1500);
+                    navigate(getRoleDefaultRoute(getPrimaryRole(user)), { replace: true });
                 }
             } catch (err) {
                 setLinkVerifying(false);
@@ -216,14 +213,10 @@ export default function VerifyEmailPage() {
         try {
             const res = await verifyEmailOtp({ email, otp: code });
             const user = res.data?.data?.user;
-            console.log(user);
             if (user) {
                 setAuth(user);
                 refreshUser?.();
-                setSuccess('Email vérifié avec succès ! Bienvenue 🎉');
-                setTimeout(() => {
-                    navigate(getRoleDefaultRoute(getPrimaryRole(user)), { replace: true });
-                }, 1200);
+                navigate(getRoleDefaultRoute(getPrimaryRole(user)), { replace: true });
             }
         } catch (err) {
             console.log(err);

@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 
 export default function CandidatModal({ data, elections, onClose, onSuccess }) {
 
-    const [electionUuid, setElectionUuid] = useState(data?.electionUuid ?? '');
+    const [electionUuid, setElectionUuid] = useState(data?.election?.uuid ?? '');
 
     const [form, setForm] = useState({
         full_name: data?.full_name ?? '',

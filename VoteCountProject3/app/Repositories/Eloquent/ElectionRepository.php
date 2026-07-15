@@ -150,21 +150,31 @@ class ElectionRepository extends BaseRepository implements ElectionRepositoryInt
 
         // • Tous les autres : ne voient que les élections de leurs organisations.
         //   Si organization_id est passé, on vérifie qu'il appartient bien à l'user.
+        // organization_id est un reliquat de deux anciens appels frontend
+        // (CreateScrutin.jsx, SubscriptionPage.jsx) — organization_uuid est
+        // la convention utilisée partout ailleurs (Scrutins.jsx, DashboardHome,
+        // Electeurs, Jurys, Equipe, Corbeille, Resultats...). On accepte les
+        // deux pour ne rien casser côté frontend.
+        $organizationUuid = $request->input('organization_uuid', $request->input('organization_id'));
+
         if ($user && $user->hasRole('super_admin')) {
-            // Super admin — filtre optionnel par uuid d'organisation
-            if ($request->filled('organization_id')) {
-                $query->whereHas('organization', function ($q) use ($request) {
-                    $q->where('uuid', $request->organization_id);
+            // Super admin — filtre optionnel par uuid d'organisation. Sans ce
+            // filtre, un super admin qui bascule sur le dashboard de SA PROPRE
+            // organisation voyait toutes les élections de la plateforme, faute
+            // de restriction par défaut (contrairement à la branche "sinon").
+            if ($organizationUuid) {
+                $query->whereHas('organization', function ($q) use ($organizationUuid) {
+                    $q->where('uuid', $organizationUuid);
                 });
             }
         } else {
             // Utilisateur normal — restreint à ses organisations
             $userOrgIds = $user?->organizations()->pluck('organizations.id') ?? collect();
 
-            if ($request->filled('organization_id')) {
+            if ($organizationUuid) {
                 // Filtre sur une org spécifique — vérifier qu'elle appartient à l'user
-                $query->whereHas('organization', function ($q) use ($request) {
-                    $q->where('uuid', $request->organization_id);
+                $query->whereHas('organization', function ($q) use ($organizationUuid) {
+                    $q->where('uuid', $organizationUuid);
                 })->whereIn('organization_id', $userOrgIds);
             } else {
                 // Pas de filtre explicite — toutes les élections de ses organisations

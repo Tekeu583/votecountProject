@@ -82,8 +82,13 @@ class OrganizationController extends BaseApiController
             })
             ->with([
                 'category',
-                'election.organization',
                 'election.creator',
+                // Toutes les élections retournées ici appartiennent à LA MÊME
+                // organisation (celle du path) — sans ce eager-load, chaque ligne
+                // relançait 4 requêtes identiques (abonnement actif x2, nombre
+                // d'élections, nombre de membres) via OrganizationResource, pour
+                // au final le même résultat répété N fois.
+                'election.organization' => fn ($q) => $q->withCount(['elections', 'users'])->with('subscriptions'),
             ]);
 
         if ($request->filled('status')) {
