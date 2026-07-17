@@ -1,66 +1,38 @@
-import { X, ShieldAlert, Ban } from "lucide-react";
+import { X, ShieldAlert, CheckCircle } from "lucide-react";
 import { securityApi } from "@services/api";
-import {
-    toastError,
-    toastLoading,
-    toastSuccess,
-    toastDismiss,
-} from "@services/toastService";
+import toast from 'react-hot-toast';
 import { useState } from "react";
 
-export default function SecurityModal({ data, onClose }) {
+export default function SecurityModal({ data, onClose, onResolved }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     if (!data) return null;
 
-    const incidentTitle = data.title || "Incident non renseigné";
-    const sourceIp = data.source || "Source inconnue";
-    const target = data.target || "Cible non renseignée";
-    const time = data.time || "Date indisponible";
-
-    const handleBlockIp = async () => {
-        if (!data?.source || isSubmitting) return;
+    const handleResolve = async () => {
+        if (isSubmitting || data.is_resolved) return;
 
         setIsSubmitting(true);
-        const loading = toastLoading("Blocage de l’adresse IP en cours...");
-
         try {
-            await securityApi.blockIp({
-                ip: data.source,
-            });
-
-            toastDismiss(loading);
-            toastSuccess("Adresse IP bloquée avec succès");
+            await securityApi.resolveAlert(data.uuid);
+            toast.success("Alerte marquée comme résolue");
+            onResolved?.();
             onClose();
         } catch (err) {
-            toastDismiss(loading);
-            toastError(err?.message || "Impossible de bloquer cette adresse IP.");
+            toast.error(err.response?.data?.message ?? "Impossible de résoudre cette alerte.");
         } finally {
             setIsSubmitting(false);
         }
     };
 
     const details = [
-        {
-            label: "Incident",
-            value: incidentTitle,
-            valueClassName: "text-slate-900 font-semibold",
-        },
-        {
-            label: "Adresse source",
-            value: sourceIp,
-            valueClassName: "text-slate-700 font-medium break-all",
-        },
-        {
-            label: "Cible",
-            value: target,
-            valueClassName: "text-slate-700 font-medium",
-        },
-        {
-            label: "Horodatage",
-            value: time,
-            valueClassName: "text-slate-700 font-medium",
-        },
+        { label: "Type", value: data.type ?? '—' },
+        { label: "Sévérité", value: data.severity_label ?? '—' },
+        { label: "Adresse IP", value: data.ip_address ?? '—' },
+        { label: "Appareil", value: data.device ?? '—' },
+        { label: "Localisation", value: data.location ?? '—' },
+        { label: "Élection", value: data.election?.title ?? '—' },
+        { label: "Utilisateur", value: data.user?.full_name ?? '—' },
+        { label: "Date", value: data.created_at ? new Date(data.created_at).toLocaleString('fr-FR') : '—' },
     ];
 
     return (
@@ -78,11 +50,10 @@ export default function SecurityModal({ data, onClose }) {
                                     Alerte sécurité
                                 </div>
                                 <h2 className="text-lg font-semibold tracking-tight">
-                                    Analyse d’incident
+                                    Détail de l'alerte
                                 </h2>
                                 <p className="mt-1 text-sm text-slate-300">
-                                    Consultez les informations de l’événement et appliquez
-                                    une action défensive si nécessaire.
+                                    Consultez les informations de l'événement et marquez-le comme résolu si le traitement est terminé.
                                 </p>
                             </div>
                         </div>
@@ -99,19 +70,19 @@ export default function SecurityModal({ data, onClose }) {
                 </div>
 
                 <div className="px-6 py-5">
-                    <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
-                            Recommandation
-                        </p>
-                        <p className="mt-1 text-sm leading-6 text-amber-900">
-                            Vérifiez la légitimité de la source avant blocage. Cette action
-                            doit être réservée aux IPs identifiées comme malveillantes ou
-                            abusives.
-                        </p>
-                    </div>
+                    {data.metadata?.signals && (
+                        <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
+                                Signaux de fraude
+                            </p>
+                            <p className="mt-1 text-sm leading-6 text-amber-900">
+                                {Object.entries(data.metadata.signals).map(([k, v]) => `${k}: ${Number(v).toFixed(2)}`).join(' • ')}
+                            </p>
+                        </div>
+                    )}
 
                     <div className="grid gap-3 sm:grid-cols-2">
-                        {details.map(({ label, value, valueClassName }) => (
+                        {details.map(({ label, value }) => (
                             <div
                                 key={label}
                                 className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-slate-300 hover:bg-white"
@@ -119,7 +90,7 @@ export default function SecurityModal({ data, onClose }) {
                                 <div className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                                     {label}
                                 </div>
-                                <p className={valueClassName}>{value}</p>
+                                <p className="text-slate-700 font-medium break-all">{value}</p>
                             </div>
                         ))}
                     </div>
@@ -131,18 +102,20 @@ export default function SecurityModal({ data, onClose }) {
                         onClick={onClose}
                         className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-100"
                     >
-                        Annuler
+                        Fermer
                     </button>
 
-                    <button
-                        type="button"
-                        onClick={handleBlockIp}
-                        disabled={isSubmitting || !data?.source}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
-                    >
-                        <Ban size={16} />
-                        {isSubmitting ? "Blocage..." : "Bloquer l’IP"}
-                    </button>
+                    {!data.is_resolved && (
+                        <button
+                            type="button"
+                            onClick={handleResolve}
+                            disabled={isSubmitting}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-green-300"
+                        >
+                            <CheckCircle size={16} />
+                            {isSubmitting ? "Résolution..." : "Marquer comme résolue"}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

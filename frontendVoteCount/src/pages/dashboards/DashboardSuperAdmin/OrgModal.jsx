@@ -5,14 +5,13 @@ import { organizationsApi } from '@services/api';
 
 export default function OrgModal({ data, onClose, onSuccess, onError }) {
     const [form, setForm] = useState({
-        name:'',
-        email:'',
-        phone:'',
-        address:'',
-        type:'',
-        status:'en attente',
+        name: data?.name ?? '',
+        email: data?.email ?? '',
+        phone: data?.phone ?? '',
+        address: data?.address ?? '',
         logo: null,
     });
+    const [submitting, setSubmitting] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -21,18 +20,23 @@ export default function OrgModal({ data, onClose, onSuccess, onError }) {
         fd.append('name', form.name);
         fd.append('email', form.email);
         fd.append('phone', form.phone);
-        fd.append('type', form.type);
-        fd.append('status', form.status);
         if (form.address) fd.append('address', form.address);
         if (form.logo) fd.append('logo', form.logo);
 
-
+        setSubmitting(true);
         try {
-            await organizationsApi.create(fd);
-            onSuccess('organisation créer avec succès');
+            if (data) {
+                await organizationsApi.update(data.uuid, fd);
+                onSuccess('Organisation mise à jour avec succès');
+            } else {
+                await organizationsApi.create(fd);
+                onSuccess('Organisation créée avec succès');
+            }
             onClose();
-        } catch {
-            onError("Impossible de créer l'organisation");
+        } catch (err) {
+            onError(err.response?.data?.message ?? "Impossible d'enregistrer l'organisation");
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -78,27 +82,12 @@ export default function OrgModal({ data, onClose, onSuccess, onError }) {
                         iconLeft={User}
                     />
 
-                    {/* type ['ONG','association','entreprise','ecole','autre'] */}
-                    <div>
-                        <label htmlFor="org-type" className="block text-sm mb-1">Type</label>
-                        <select
-                            id="org-type"
-                            value={form.type}
-                            onChange={(e) => setForm({ ...form, type: e.target.value })}
-                            className="input w-full"
-                        >
-                            <option value="">type d'organisation</option>
-                            <option value="ONG">ONG</option>
-                            <option value="association">Association</option>
-                            <option value="entreprise">Entreprise</option>
-                            <option value="ecole">Ecole</option>
-                            <option value="autre">Autre</option>
-                        </select>
-                    </div>
-
                     {/* LOGO */}
                     <div>
                         <label htmlFor="org-logo" className="block text-sm mb-1">Logo</label>
+                        {data?.logo && !form.logo && (
+                            <img src={data.logo} alt="Logo actuel" className="w-12 h-12 rounded object-cover mb-2" />
+                        )}
                         <TextInput
                             id="org-logo"
                             type="file"
@@ -109,8 +98,11 @@ export default function OrgModal({ data, onClose, onSuccess, onError }) {
                         />
                     </div>
 
-                    <button type='submit' className="btn-primary w-full">
-                        créer l'organisation
+                    <button type='submit' disabled={submitting} className="btn-primary w-full disabled:opacity-50">
+                        {(() => {
+                            if (submitting) return 'Enregistrement...';
+                            return data ? "modifier l'organisation" : "créer l'organisation";
+                        })()}
                     </button>
 
                 </form>

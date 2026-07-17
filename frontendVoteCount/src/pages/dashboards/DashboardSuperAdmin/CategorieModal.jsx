@@ -1,6 +1,7 @@
 import { X, LoaderCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import TextInput from "@components/ui/TextInput";
+import { categoriesApi } from "@services/api";
 
 export default function CategorieModal({
     data = null,
@@ -10,8 +11,11 @@ export default function CategorieModal({
 }) {
     const [form, setForm] = useState({
         name: "",
-        label: "",
         description: "",
+        icon: "",
+        color: "#3B82F6",
+        status: "active",
+        banner: null,
     });
 
     const [loading, setLoading] = useState(false);
@@ -22,6 +26,10 @@ export default function CategorieModal({
             setForm({
                 name: data.name || "",
                 description: data.description || "",
+                icon: data.icon || "",
+                color: data.color || "#3B82F6",
+                status: data.status || "active",
+                banner: null,
             });
         }
     }, [data]);
@@ -43,19 +51,28 @@ export default function CategorieModal({
             return onError("Le nom de la catégorie est requis");
         }
 
+        const fd = new FormData();
+        fd.append('name', form.name);
+        if (form.description) fd.append('description', form.description);
+        if (form.icon) fd.append('icon', form.icon);
+        if (form.color) fd.append('color', form.color);
+        fd.append('status', form.status);
+        if (form.banner) fd.append('banner', form.banner);
+
         try {
             setLoading(true);
 
-            // Simulation API (remplace par axios)
-            await new Promise((res) => setTimeout(res, 1000));
-
-            onSuccess(
-                data
-                    ? "Catégorie mise à jour avec succès"
-                    : "Catégorie créée avec succès"
-            );
+            if (data) {
+                await categoriesApi.update(data.uuid, fd);
+                onSuccess("Catégorie mise à jour avec succès");
+            } else {
+                await categoriesApi.create(fd);
+                onSuccess("Catégorie créée avec succès");
+            }
         } catch (error) {
-            onError("Une erreur est survenue", error);
+            const errors = error.response?.data?.errors;
+            const firstError = errors ? Object.values(errors)[0]?.[0] : null;
+            onError(firstError ?? error.response?.data?.message ?? "Une erreur est survenue");
         } finally {
             setLoading(false);
         }
@@ -103,19 +120,67 @@ export default function CategorieModal({
                             className="w-full mt-1"
                         />
                     </div>
-                    {/* label */}
+
+                    {/* ICON */}
                     <div>
-                        <label htmlFor="label" className="text-sm font-medium">
-                            label de la catégorie
-                        </label>
                         <TextInput
-                            id="label"
-                            name="label"
-                            value={form.label}
-                            label="Label"
+                            id="icon"
+                            name="icon"
+                            value={form.icon}
+                            label="Icône (optionnel)"
                             onChange={handleChange}
-                            placeholder="Ex: Miss, Académique, Business..."
+                            placeholder="Ex: trophy, star..."
                             className="w-full mt-1"
+                        />
+                    </div>
+
+                    {/* COLOR */}
+                    <div>
+                        <label htmlFor="color" className="text-sm font-medium">
+                            Couleur
+                        </label>
+                        <input
+                            id="color"
+                            name="color"
+                            type="color"
+                            value={form.color}
+                            onChange={handleChange}
+                            className="w-full mt-1 h-10 rounded-md border border-[var(--color-gray-light)] cursor-pointer"
+                        />
+                    </div>
+
+                    {/* STATUS */}
+                    <div>
+                        <label htmlFor="status" className="text-sm font-medium">
+                            Statut
+                        </label>
+                        <select
+                            id="status"
+                            name="status"
+                            value={form.status}
+                            onChange={handleChange}
+                            className="input w-full mt-1"
+                        >
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                    </div>
+
+                    {/* BANNER */}
+                    <div>
+                        <label htmlFor="banner" className="text-sm font-medium">
+                            Bannière (optionnel)
+                        </label>
+                        {data?.banner && !form.banner && (
+                            <img src={data.banner} alt="Bannière actuelle" className="w-full h-20 rounded object-cover mt-1 mb-2" />
+                        )}
+                        <input
+                            id="banner"
+                            name="banner"
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => setForm({ ...form, banner: e.target.files[0] })}
+                            className="w-full mt-1 text-sm"
                         />
                     </div>
 
@@ -149,7 +214,7 @@ export default function CategorieModal({
                         <button
                             type="submit"
                             disabled={loading}
-                            className="btn-primary flex items-center gap-2"
+                            className="btn-primary flex items-center gap-2 disabled:opacity-50"
                         >
                             {loading && <LoaderCircle className="animate-spin" size={16} />}
                             {data ? "Mettre à jour" : "Créer"}

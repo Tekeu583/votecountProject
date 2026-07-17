@@ -3,11 +3,10 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, LogIn, AlertCircle, Loader2 } from 'lucide-react';
 import { ClipLoader } from 'react-spinners'
 import TextInput from '@components/ui/TextInput';
-import { getRoleDefaultRoute } from '@utils/roleRoutes';
+import { getRoleDefaultRoute, getPrimaryRole, getAvailableRoles, getRoleFromPath } from '@utils/roleRoutes';
 import Logo from '@components/Logo';
 import { useAuth } from '@hooks/useAuth';
 import MiniFooter from '@components/layouts/Minifooter';
-import { getPrimaryRole } from '@utils/roleRoutes';
 
 // ─── Logo ───
 const VoteCountLogo = () => (
@@ -23,10 +22,11 @@ export default function LoginPage() {
   const { user, authenticated, loading: authLoading, login: authLogin, errors: authErrors } = useAuth();
   const from = location.state?.from ?? null;
 
-  // Redirection si déjà authentifié (ex: retour sur /login après connexion)
   useEffect(() => {
     if (authenticated && user) {
-      const destination = from ?? getRoleDefaultRoute(getPrimaryRole(user));
+      const fromRole = from ? getRoleFromPath(from) : null;
+      const canUseFrom = from && (!fromRole || getAvailableRoles(user).includes(fromRole));
+      const destination = canUseFrom ? from : getRoleDefaultRoute(getPrimaryRole(user));
       navigate(destination, { replace: true });
     }
   }, [authenticated, user, navigate, from]);

@@ -8,12 +8,21 @@ use App\Models\Organization;
 use App\Models\TrashRecord;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class TrashController extends BaseApiController
 {
     public function index(Request $request): JsonResponse
     {
         $organization = $this->resolveOrganization($request);
+
+        // Sans organization_uuid, la requête ci-dessous porterait sur TOUTE
+        // la corbeille de la plateforme — réservé au super admin. Avec une
+        // organization_uuid, l'authorize('update', $organization) plus bas
+        // couvre déjà le cas non-admin.
+        if (! $organization && ! Auth::user()->isSuperAdmin()) {
+            return $this->forbidden('organization_uuid est requis.');
+        }
 
         $query = TrashRecord::query()
             ->with('deleter')

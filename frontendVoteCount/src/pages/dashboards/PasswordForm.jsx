@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Lock, LoaderCircle, EyeOff, Eye } from "lucide-react";
 import TextInput from "@components/ui/TextInput";
 import PropTypes from "prop-types";
@@ -7,6 +8,10 @@ export default function PasswordForm({
     onSave,
     loading
 }) {
+    const [showCurrent, setShowCurrent] = useState(false);
+    const [showNew, setShowNew] = useState(false);
+    const [showConfirmation, setShowConfirmation] = useState(false);
+
     return (
         <div className="bg-[var(--color-white)] rounded-2xl shadow">
 
@@ -14,7 +19,7 @@ export default function PasswordForm({
 
                 <TextInput
                     label="Mot de passe actuel"
-                    type="password"
+                    type={showCurrent ? 'text' : 'password'}
                     placeholder="••••••••"
                     value={passwordForm.currentPassword }
                     onChange={(e) =>
@@ -23,7 +28,8 @@ export default function PasswordForm({
                             currentPassword: e.target.value,
                         })
                     }
-                    iconRight={passwordForm.currentPassword ? EyeOff : Eye}
+                    iconRight={showCurrent ? EyeOff : Eye}
+                    onIconRightClick={() => setShowCurrent(v => !v)}
                     iconLeft={Lock}
                 />
 
@@ -31,7 +37,7 @@ export default function PasswordForm({
 
                 <TextInput
                     label="Nouveau mot de passe"
-                    type="password"
+                    type={showNew ? 'text' : 'password'}
                     placeholder="••••••••"
                     value={passwordForm.password }
                     onChange={(e) =>
@@ -40,13 +46,14 @@ export default function PasswordForm({
                             password: e.target.value,
                         })
                     }
-                    iconRight={passwordForm.password ? EyeOff : Eye}
+                    iconRight={showNew ? EyeOff : Eye}
+                    onIconRightClick={() => setShowNew(v => !v)}
                     iconLeft={Lock}
                 />
 
                 <TextInput
                     label="Confirmation"
-                    type="password"
+                    type={showConfirmation ? 'text' : 'password'}
                     placeholder="••••••••"
                     value={passwordForm.passwordConfirmation }
                     onChange={(e) =>
@@ -55,7 +62,8 @@ export default function PasswordForm({
                             passwordConfirmation: e.target.value,
                         })
                     }
-                    iconRight={passwordForm.passwordConfirmation ? EyeOff : Eye}
+                    iconRight={showConfirmation ? EyeOff : Eye}
+                    onIconRightClick={() => setShowConfirmation(v => !v)}
                     iconLeft={Lock}
                 />
             </div>

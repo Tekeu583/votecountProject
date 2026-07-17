@@ -1,8 +1,10 @@
 import { useState } from "react";
 import PropTypes from "prop-types";
-import { X, Loader2, User } from "lucide-react";
-import { notificationsApi } from "@services/api";
+import { X, Loader2, Mail } from "lucide-react";
+import { notificationsApi, usersApi } from "@services/api";
 import TextInput from "@components/ui/TextInput";
+
+// data = notification existante (lecture seule) ; sinon, formulaire d'envoi.
 export default function NotificationModal({
     data,
     onClose,
@@ -11,34 +13,24 @@ export default function NotificationModal({
 }) {
     const [loading, setLoading] = useState(false);
     const [form, setForm] = useState({
-        id: data?.id || null,
-        name: data?.name || "ServiceVoteCount",
-        destinataire: data?.destinataire || "",
-        subject: data?.subject || "",
-        message: data?.message || "",
+        email: '',
+        title: '',
+        message: '',
     });
+
     const handleChange = (field, value) => {
         setForm({ ...form, [field]: value });
     };
 
-    //Validation
     const validate = () => {
-        if (!form.message.trim()) {
-            return "Le message est requis";
-        }
-        if (form.message.trim().length < 5) {
-            return "Message trop court (min 5 caractères)";
-        }
-        if (!form.subject.trim()) {
-            return "L'subject est requis";
-        }
+        if (!form.email.trim()) return "L'email du destinataire est requis";
+        if (!form.title.trim()) return "Le titre est requis";
+        if (!form.message.trim() || form.message.trim().length < 5) return "Message trop court (min 5 caractères)";
         return null;
     };
 
-    //Submit handler
     const handleSubmit = async () => {
         const validationError = validate();
-
         if (validationError) {
             onError(validationError);
             return;
@@ -46,79 +38,89 @@ export default function NotificationModal({
         setLoading(true);
 
         try {
-            if (data) {
-                await notificationsApi.update(data.id, form);
-                onSuccess("Notification repondue avec succès");
-                onClose();
-            } else {
-                await notificationsApi.create(form);
-                onSuccess("Notification envoye avec succès");
-                onClose();
+            // Le destinataire doit être un compte existant : on le retrouve par email.
+            const res = await usersApi.getAll(1, 5, { search: form.email.trim() });
+            const list = res.data?.data?.data ?? res.data?.data ?? [];
+            const match = list.find(u => u.email?.toLowerCase() === form.email.trim().toLowerCase());
+
+            if (!match) {
+                onError("Aucun utilisateur trouvé avec cet email.");
+                setLoading(false);
+                return;
             }
+
+            await notificationsApi.create({
+                user_uuid: match.uuid,
+                title: form.title,
+                message: form.message,
+            });
+            onSuccess("Notification envoyée avec succès");
+            onClose();
         } catch (err) {
-            onError(`"Une erreur est survenue lors de l’envoi ${err || ""}"`);
+            onError(err.response?.data?.message ?? "Une erreur est survenue lors de l'envoi");
         } finally {
             setLoading(false);
         }
     };
 
+    // ── Mode lecture seule : affiche une notification déjà envoyée ──
+    if (data) {
+        return (
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+                <div className="bg-[var(--color-background-white)] w-full max-w-lg rounded-[var(--radius-md)] shadow-[var(--shadow-md)] overflow-hidden">
+                    <div className="flex justify-between items-center p-4 border-b border-b-[var(--color-gray-light)]">
+                        <h2 className="font-semibold text-lg">Notification</h2>
+                        <button onClick={onClose} className="hover:opacity-70 transition"><X /></button>
+                    </div>
+                    <div className="p-4 space-y-3">
+                        <p><span className="font-medium">Destinataire : </span>{data.user?.full_name ?? '—'} ({data.user?.email ?? '—'})</p>
+                        <p><span className="font-medium">Titre : </span>{data.title}</p>
+                        <p className="whitespace-pre-wrap"><span className="font-medium">Message : </span>{data.message}</p>
+                        <p className="text-sm text-gray-500">
+                            {data.is_read ? `Lue le ${new Date(data.read_at).toLocaleString('fr-FR')}` : 'Non lue'}
+                        </p>
+                    </div>
+                    <div className="flex justify-end gap-2 p-4 border-t border-t-[var(--color-gray-light)] bg-gray-50">
+                        <button onClick={onClose} className="btn-secondary">Fermer</button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ── Mode envoi ──
     return (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-[var(--color-background-white)] w-full max-w-lg rounded-[var(--radius-md)] shadow-[var(--shadow-md)] overflow-hidden">
-                {/* HEADER */}
                 <div className="flex justify-between items-center p-4 border-b border-b-[var(--color-gray-light)]">
-                    <h2 className="font-semibold text-lg">
-                        Répondre à la notification
-                    </h2>
-                    <button
-                        onClick={onClose}
-                        className="hover:opacity-70 transition"
-                    >
-                        <X />
-                    </button>
+                    <h2 className="font-semibold text-lg">Envoyer une notification</h2>
+                    <button onClick={onClose} className="hover:opacity-70 transition"><X /></button>
                 </div>
 
                 <div className="p-4 space-y-4">
-                    <div >
-                        <TextInput
-                            value={form.name}
-                            type="text"
-                            name="name"
-                            className="w-full mt-1"
-                            label="Nom"
-                            iconLeft={User}
-                            required
-                            onChange={(e) => handleChange('name', e.target.value)}
-                            placeholder="Nom"
-                        />
-                    </div>
-                    {/* Destinataire */}
-                    <div>
-                        <TextInput
-                            value={form.destinataire}
-                            type="email"
-                            name="destinataire"
-                            className="w-full mt-1"
-                            label="Destinataire"
-                            required
-                            onChange={(e) => handleChange('destinataire', e.target.value)}
-                            placeholder="Destinataire@gmail.com"
-                        />
-                    </div>
-                    {/* subject modifiable */}
-                    <div>
-                        <TextInput
-                            value={form.subject}
-                            type="text"
-                            name="subject"
-                            className="w-full mt-1"
-                            label="Subject"
-                            required
-                            onChange={(e) => handleChange('subject', e.target.value)}
-                            placeholder="Objet du message"
-                            disabled={loading}
-                        />
-                    </div>
+                    <TextInput
+                        value={form.email}
+                        type="email"
+                        name="email"
+                        className="w-full mt-1"
+                        label="Destinataire (email d'un utilisateur existant)"
+                        iconLeft={Mail}
+                        required
+                        onChange={(e) => handleChange('email', e.target.value)}
+                        placeholder="destinataire@email.com"
+                        disabled={loading}
+                    />
+                    <TextInput
+                        value={form.title}
+                        type="text"
+                        name="title"
+                        className="w-full mt-1"
+                        label="Titre"
+                        required
+                        onChange={(e) => handleChange('title', e.target.value)}
+                        placeholder="Titre de la notification"
+                        disabled={loading}
+                    />
                     <div>
                         <label htmlFor="message" className="text-xs text-gray-800 capitalize">message</label>
                         <textarea
@@ -128,34 +130,22 @@ export default function NotificationModal({
                             name="message"
                             value={form.message}
                             onChange={(e) => handleChange("message", e.target.value)}
-                            placeholder="Votre réponse..."
+                            placeholder="Contenu de la notification..."
                             disabled={loading}
                         />
                     </div>
                 </div>
 
-                {/* FOOTER */}
                 <div className="flex justify-end gap-2 p-4 border-t border-t-[var(--color-gray-light)] bg-gray-50">
-
-                    <button
-                        onClick={onClose}
-                        className="btn-secondary"
-                        disabled={loading}
-                    >
-                        Annuler
-                    </button>
-
+                    <button onClick={onClose} className="btn-secondary" disabled={loading}>Annuler</button>
                     <button
                         onClick={handleSubmit}
                         className="btn-primary flex items-center gap-2"
                         disabled={loading}
                     >
-                        {loading && (
-                            <Loader2 size={16} className="animate-spin" />
-                        )}
+                        {loading && <Loader2 size={16} className="animate-spin" />}
                         {loading ? "Envoi..." : "Envoyer"}
                     </button>
-
                 </div>
             </div>
         </div>
@@ -164,11 +154,12 @@ export default function NotificationModal({
 
 NotificationModal.propTypes = {
     data: PropTypes.shape({
-        id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
-        destinataire: PropTypes.string.isRequired,
-        subject: PropTypes.string,
+        uuid: PropTypes.string,
+        title: PropTypes.string,
         message: PropTypes.string,
-        name: PropTypes.string
+        is_read: PropTypes.bool,
+        read_at: PropTypes.string,
+        user: PropTypes.shape({ full_name: PropTypes.string, email: PropTypes.string }),
     }),
     onClose: PropTypes.func.isRequired,
     onSuccess: PropTypes.func,

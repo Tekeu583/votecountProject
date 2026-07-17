@@ -11,6 +11,8 @@ class SettingController extends BaseApiController
 {
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('view settings');
+
         $settings = SystemSetting::all();
 
         $formattedSettings = [];

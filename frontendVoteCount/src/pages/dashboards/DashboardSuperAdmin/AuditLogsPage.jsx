@@ -1,8 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Download,
-  CheckCircle,
-  XCircle,
   Info,
   Eye,
   X,
@@ -16,14 +14,22 @@ import TextInput from '@components/ui/TextInput';
 
 import { useExport } from '@/hooks/useExport';
 import { formatAuditLogs } from '@/utils/export/formatData';
-import { auditApi } from '@services/api';
+import { auditApi, organizationsApi } from '@services/api';
 
-const MetadataCell = ({ metadata }) => (
+const ACTION_OPTIONS = [
+  { value: 'created', label: 'Créé' },
+  { value: 'updated', label: 'Modifié' },
+  { value: 'deleted', label: 'Supprimé' },
+  { value: 'restored', label: 'Restauré' },
+  { value: 'forceDeleted', label: 'Supprimé définitivement' },
+];
+
+const MetadataCell = ({ log }) => (
   <button
     onClick={() =>
       toast(
-        <pre className="bg-black text-white p-3 rounded text-xs">
-          {JSON.stringify(metadata, null, 2)}
+        <pre className="bg-black text-white p-3 rounded text-xs max-w-xs overflow-auto">
+          {JSON.stringify({ avant: log.old_values, après: log.new_values }, null, 2)}
         </pre>
       )
     }
@@ -32,129 +38,84 @@ const MetadataCell = ({ metadata }) => (
   </button>
 );
 
-const ActionsCell = ({ onView }) => (
-  <button
-    className="text-slate-400 hover:text-blue-600 p-2.5 rounded-lg hover:bg-blue-50"
-    onClick={onView}
-  >
-    <Eye size={16} />
-  </button>
-);
+// Empêche un appel API à chaque frappe : attend 400ms d'inactivité.
+function useDebounce(value, delay = 400) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
+
+const EMPTY_PAGE = {
+  data: [],
+  meta: { current_page: 1, last_page: 1, per_page: 15, total: 0, from: 0, to: 0 },
+};
 
 const AuditLogsPage = () => {
-
   const { handleExport } = useExport();
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('Tous');
+  const [actionFilter, setActionFilter] = useState('');
+  const [orgFilter, setOrgFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [orgFilter, setOrgFilter] = useState('Tous');
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 3;
-  const [audits, setAudits]=useState([]);
+  const debouncedSearch = useDebounce(searchTerm);
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 15;
 
-  // recupération des données d'audits depuis l'api
+  const [logs, setLogs] = useState(EMPTY_PAGE);
+  const [loading, setLoading] = useState(false);
+  const [organizations, setOrganizations] = useState([]);
 
   useEffect(() => {
-    const fetchAudits = async () => {
-      try {
-        const response = await auditApi.getAll();
-        setAudits(response.data);
-        console.log('audits',response.data);
-      } catch (error) {
-        console.error('Error fetching audits:', error);
-      }
-    };
-    fetchAudits();
+    organizationsApi.getAll({ per_page: 100 })
+      .then(res => setOrganizations(res.data?.data ?? []))
+      .catch(() => setOrganizations([]));
   }, []);
 
-  const [datas] = useState([
-    {
-      id: 1,
-      created_at: "25 Dec 2025 14:32:01",
-      type: "Auth",
-      action: "user_login",
-      status: "success",
-      organization: "Mairie de Douala",
-      user: "user_8293@Douala.fr",
-      ip_address: "196.168.1.45",
-      metadata: { method: "email", ip_country: "CM", referer: "/" },
-    },
-    {
-      id: 2,
-      created_at: "25 Dec 2025 14:30:45",
-      type: "OTP",
-      action: "otp_verified",
-      status: "success",
-      organization: "Assoc. Syndicale",
-      user: "m.garcia@gmail.com",
-      ip_address: "154.73.22.10",
-      metadata: { code_valid: true, attempts: 1, phone: "+237 6XX XXX XXX" },
-    },
-    {
-      id: 3,
-      created_at: "25 Dec 2025 14:28:12",
-      type: "Paiement",
-      action: "subscription_renewed",
-      status: "echec",
-      organization: "Club des Aînés",
-      user: "admin@club-aines.fr",
-      ip_address: "102.45.67.89",
-      metadata: { error: "Carte expirée", amount: 15000, currency: "XAF" },
-    },
-    {
-      id: 4,
-      created_at: "25 Dec 2025 14:15:33",
-      type: "Vote",
-      action: "vote_submitted",
-      status: "success",
-      organization: "Mairie de Douala",
-      user: "user_3310@Douala.fr",
-      ip_address: "196.168.2.78",
-      metadata: { scrutin_id: 45, bulletin_hash: "0xabc123..." },
-    },
-  ]);
+  const fetchAudits = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await auditApi.getAll({
+        page,
+        per_page: itemsPerPage,
+        ...(actionFilter ? { action: actionFilter } : {}),
+        ...(orgFilter ? { organization_uuid: orgFilter } : {}),
+        ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      });
+      setLogs({
+        data: response.data?.data ?? [],
+        meta: response.data?.meta ?? EMPTY_PAGE.meta,
+      });
+    } catch (error) {
+      toast.error(error.response?.data?.message ?? "Impossible de charger les journaux d'audit");
+      setLogs(EMPTY_PAGE);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, actionFilter, orgFilter, debouncedSearch]);
 
-  const filteredData = useMemo(() => {
-    return datas.filter(item => {
-      const matchSearch =
-        item.user.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.organization.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.ip_address.includes(searchTerm);
-
-      const matchStatus = statusFilter === 'Tous' || item.status === statusFilter;
-      const matchOrg = orgFilter === 'Tous' || item.organization === orgFilter;
-
-
-      return matchSearch && matchStatus && matchOrg;
-    });
-  }, [datas, searchTerm, statusFilter, orgFilter]);
-
-  const paginatedLogsAudits = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredData.slice(start, start + itemsPerPage);
-  }, [filteredData, currentPage]);
-
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  useEffect(() => { fetchAudits(); }, [fetchAudits]);
+  useEffect(() => { setPage(1); }, [actionFilter, orgFilter, debouncedSearch]);
 
   const handleResetFilters = () => {
     setSearchTerm('');
-    setOrgFilter('Tous');
-    setStatusFilter('Tous');
-    setCurrentPage(1);
+    setOrgFilter('');
+    setActionFilter('');
+    setPage(1);
   };
 
-
-  //Fonction unique d’export
+  //Fonction unique d’export — exporte la page actuellement chargée.
   const handleExportClick = (type) => {
     handleExport({
       type,
-      datas,
+      datas: logs.data,
       formatter: formatAuditLogs,
       filename: `audit_logs_${new Date().toISOString().slice(0, 10)}`
     });
   };
+
+  const { data: items, meta } = logs;
 
   return (
     <div className="flex-1 flex flex-col bg-[var(--color-background-white)]">
@@ -217,7 +178,7 @@ const AuditLogsPage = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9 w-full"
-              placeholder="Rechercher..." />
+              placeholder="Rechercher (action, entité)..." />
           </div>
 
           <div className="flex gap-2 w-full min-w-[200px] lg:w-auto">
@@ -225,21 +186,21 @@ const AuditLogsPage = () => {
               value={orgFilter}
               onChange={(e) => setOrgFilter(e.target.value)}
               className="input w-full">
-              <option value='Tous'>Toutes les organisations</option>
-              <option value="Mairie de Douala">Mairie de Douala</option>
-              <option value="Assoc. Syndicale">Assoc. Syndicale</option>
-              <option value="Club des Aînés">Club des Aînés</option>
+              <option value=''>Toutes les organisations</option>
+              {organizations.map(org => (
+                <option key={org.uuid} value={org.uuid}>{org.name}</option>
+              ))}
             </select>
           </div>
           <div className="flex gap-2 w-full min-w-[200px] lg:w-auto">
             <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              value={actionFilter}
+              onChange={(e) => setActionFilter(e.target.value)}
               className="input w-full">
-              <option value='Tous'>Tous les statuts</option>
-              <option value="success">Success</option>
-              <option value="echec">Echec</option>
-              <option value="en attente">En attente</option>
+              <option value=''>Toutes les actions</option>
+              {ACTION_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
             </select>
           </div>
           <button
@@ -260,72 +221,65 @@ const AuditLogsPage = () => {
             <thead className="bg-[var(--color-gray-light)] text-xs uppercase">
               <tr>
                 <th className="px-4 py-2 text-left">Date & Heure</th>
-                <th className='px-4 py-2 text-left'>Type</th>
+                <th className='px-4 py-2 text-left'>Entité</th>
                 <th className='px-4 py-2 text-left'>Action</th>
-                <th className='px-4 py-2 text-left'>Organisation</th>
                 <th className='px-4 py-2 text-left'>Utilisateur</th>
-                <th className='px-4 py-2 text-left'>Statut</th>
                 <th className='px-4 py-2 text-left'>Address IP</th>
-                <th className='px-4 py-2 text-left'>Metadata</th>
-                <th className='px-4 py-2 text-left'>Actions</th>
+                <th className='px-4 py-2 text-left'>Détails</th>
               </tr>
             </thead>
 
             <tbody>
-              {paginatedLogsAudits.map((data) => (
-                <tr key={data.id} className="border-t border-t-[var(--color-gray-light)] hover:bg-[var(--color-gray-light)] items-center">
-                  <td className="px-4 py-2 flex items-center whitespace-nowrap gap-2">
-                    {data.created_at}
+              {loading && (
+                <tr><td colSpan={6} className="p-6 text-center text-[var(--color-gray)]">Chargement...</td></tr>
+              )}
+              {!loading && items.map((log) => (
+                <tr key={log.uuid} className="border-t border-t-[var(--color-gray-light)] hover:bg-[var(--color-gray-light)] items-center">
+                  <td className="px-4 py-2 whitespace-nowrap">
+                    {log.created_at ? new Date(log.created_at).toLocaleString('fr-FR') : '—'}
                   </td>
-                  <td>
-                    {data.type}
-                  </td>
-                  <td className='px-4 py-2'>{data.action}</td>
-                  <td className='px-4 py-2'>{data.organization}</td>
-                  <td className='px-4 py-2'>{data.user}</td>
-                  <td className='px-4 py-2'>
-                    <span
-                      className={`text-xs whitespace-nowrap px-4 py-2 ${data.status === 'success' ? 'text-green-600' : 'text-red-500'
-                        }`}
-                    >
-                      ● {data.status}
-                    </span>
-                  </td>
-                  <td className='px-4 py-2'>{data.ip_address}</td>
+                  <td className='px-4 py-2'>{log.entity_label}</td>
+                  <td className='px-4 py-2'>{log.action_label}</td>
+                  <td className='px-4 py-2'>{log.user?.name ?? '—'}</td>
+                  <td className='px-4 py-2'>{log.ip_address ?? '—'}</td>
                   <td className='text-center' >
-                    <MetadataCell metadata={data.metadata} />
-                  </td>
-                  <td className='px-4 py-2'>
-                    <ActionsCell onView={() => console.log('view', data)} />
+                    <MetadataCell log={log} />
                   </td>
                 </tr>
               ))}
+              {!loading && items.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="text-center py-10 text-[var(--color-gray)]">
+                    Aucun journal d'audit trouvé
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
 
         {/* PAGINATION */}
-        <div className="flex flex-col lg:flex-row justify-between items-center p-4 text-sm gap-3">
-          <span className="text-[var(--color-gray)]">
-            Affichage de {(currentPage - 1) * itemsPerPage + 1} à{" "}
-            {Math.min(currentPage * itemsPerPage, filteredData.length)} sur{" "}
-            {filteredData.length}
-          </span>
-
-          <div className="flex gap-2">
-            <button
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((p) => p - 1)}
-              className="px-3 py-1 border rounded"><ChevronLeft size={16} /></button>
-            <span className="px-3 py-1 bg-[var(--color-primary)] text-white rounded">
-              {currentPage} / {totalPages}
+        {!loading && meta.total > 0 && (
+          <div className="flex flex-col lg:flex-row justify-between items-center p-4 text-sm gap-3">
+            <span className="text-[var(--color-gray)]">
+              Affichage de {meta.from} à {meta.to} sur {meta.total}
             </span>
-            <button
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage((p) => p + 1)}
-              className="px-3 py-1 border rounded"><ChevronRight size={16} /></button>
+
+            <div className="flex gap-2">
+              <button
+                disabled={page === 1}
+                onClick={() => setPage((p) => p - 1)}
+                className="px-3 py-1 border rounded disabled:opacity-50"><ChevronLeft size={16} /></button>
+              <span className="px-3 py-1 bg-[var(--color-primary)] text-white rounded">
+                {meta.current_page} / {meta.last_page}
+              </span>
+              <button
+                disabled={page === meta.last_page}
+                onClick={() => setPage((p) => p + 1)}
+                className="px-3 py-1 border rounded disabled:opacity-50"><ChevronRight size={16} /></button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

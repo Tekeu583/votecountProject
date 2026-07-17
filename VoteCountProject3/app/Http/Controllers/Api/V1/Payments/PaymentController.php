@@ -640,9 +640,12 @@ class PaymentController extends BaseApiController
         $user = Auth::user();
 
         // Vérifier que l'utilisateur appartient à l'organisation de cet abonnement
+        // (le super admin peut agir sur n'importe quel abonnement, ex: page
+        // d'administration des abonnements).
         $organization = $subscription->organization;
         $isMember = $organization->users()->where('users.id', $user->id)->exists()
-            || $organization->owner_user_id === $user->id;
+            || $organization->owner_user_id === $user->id
+            || $user->isSuperAdmin();
 
         if (! $isMember) {
             return $this->error('Accès non autorisé à cet abonnement', null, 403);
@@ -674,7 +677,8 @@ class PaymentController extends BaseApiController
 
         $organization = $subscription->organization;
         $isMember = $organization->users()->where('users.id', $user->id)->exists()
-            || $organization->owner_user_id === $user->id;
+            || $organization->owner_user_id === $user->id
+            || $user->isSuperAdmin();
 
         if (! $isMember) {
             return $this->error('Accès non autorisé à cet abonnement', null, 403);
@@ -696,5 +700,75 @@ class PaymentController extends BaseApiController
             'message'           => 'Abonnement annulé. Vous gardez l\'accès jusqu\'au ' .
                 $subscription->end_at?->format('d/m/Y') . '.',
         ], 'Abonnement annulé');
+    }
+
+    /**
+     * GET /api/v1/subscriptions
+     * Liste de tous les abonnements, toutes organisations confondues.
+     * Réservé au super administrateur — n'existait pas avant : les routes
+     * subscriptions/* ne géraient que "mon abonnement" (self-scoped).
+     */
+    public function adminIndex(Request $request): JsonResponse
+    {
+        if (! Auth::user()->isSuperAdmin()) {
+            return $this->forbidden('Accès réservé au super administrateur');
+        }
+
+        $query = Subscription::with(['organization', 'plan']);
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->query('status'));
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->query('search');
+            $query->whereHas('organization', fn ($q) => $q->where('name', 'ilike', "%{$search}%"));
+        }
+
+        $subscriptions = $query->orderByDesc('created_at')
+            ->paginate($request->get('per_page', 15));
+
+        $subscriptions->getCollection()->transform(fn (Subscription $s) => [
+            'uuid' => $s->uuid,
+            'status' => $s->status,
+            'auto_renew' => $s->auto_renew,
+            'start_at' => $s->start_at?->toIso8601String(),
+            'end_at' => $s->end_at?->toIso8601String(),
+            'days_remaining' => $s->days_remaining,
+            'organization' => $s->organization ? [
+                'uuid' => $s->organization->uuid,
+                'name' => $s->organization->name,
+                'logo' => $s->organization->logo_url,
+            ] : null,
+            'plan' => $s->plan ? [
+                'uuid' => $s->plan->uuid,
+                'name' => $s->plan->name,
+                'price' => $s->plan->price,
+                'currency' => $s->plan->currency,
+            ] : null,
+        ]);
+
+        return $this->paginated($subscriptions);
+    }
+
+    /**
+     * GET /api/v1/subscriptions/stats
+     * Réservé au super administrateur.
+     */
+    public function adminStats(): JsonResponse
+    {
+        if (! Auth::user()->isSuperAdmin()) {
+            return $this->forbidden('Accès réservé au super administrateur');
+        }
+
+        return $this->success([
+            'total' => Subscription::count(),
+            'active' => Subscription::where('status', 'active')->count(),
+            'expired' => Subscription::where('status', 'expired')->count(),
+            'cancelled' => Subscription::where('status', 'cancelled')->count(),
+            'expiring_soon' => Subscription::where('status', 'active')
+                ->whereBetween('end_at', [now(), now()->addDays(7)])
+                ->count(),
+        ]);
     }
 }

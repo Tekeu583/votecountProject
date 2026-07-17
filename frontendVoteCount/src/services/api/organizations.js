@@ -50,9 +50,16 @@ export const organizationsApi = {
     /**
      * PUT /api/v1/organizations/{organization}
      * Permission requise : 'edit organizations'
+     * FormData (upload de logo/banner) doit passer par POST + _method=PUT —
+     * PHP ne parse pas les bodies multipart sur les requêtes PUT.
      */
-    update: (orgUuid, data) =>
-        api.put(`${V1}/organizations/${orgUuid}`, data),
+    update: (orgUuid, data) => {
+        if (data instanceof FormData) {
+            data.append('_method', 'PUT');
+            return api.post(`${V1}/organizations/${orgUuid}`, data);
+        }
+        return api.put(`${V1}/organizations/${orgUuid}`, data);
+    },
 
     /**
      * DELETE /api/v1/organizations/{organization}

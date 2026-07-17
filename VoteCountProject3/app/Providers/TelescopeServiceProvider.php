@@ -56,10 +56,11 @@ class TelescopeServiceProvider extends TelescopeApplicationServiceProvider
      */
     protected function gate(): void
     {
+        // Liste vide -> personne ne pouvait ouvrir Telescope hors env local.
+        // Réutilise le rôle super_admin déjà en place plutôt qu'une liste
+        // d'emails à maintenir à la main.
         Gate::define('viewTelescope', function (User $user) {
-            return in_array($user->email, [
-                //
-            ]);
+            return $user->isSuperAdmin();
         });
     }
 }

@@ -21,7 +21,6 @@ import { usersApi } from '@services/api';
 import UserModal from './UserModal';
 import TextInput from '@components/ui/TextInput';
 import StatCard from '@components/dashboard/StatCard';
-import { getPrimaryRole } from '@utils/roleRoutes';
 
 
 
@@ -29,15 +28,17 @@ const badgeRole = (role) => {
   switch (role) {
     case 'super_admin':
       return 'bg-blue-100 text-blue-600';
-    case 'admin_org':
+    case 'admin':
+    case 'organization_owner':
       return 'bg-purple-100 text-purple-600';
-    case 'votant':
+    case 'user':
       return 'bg-gray-100 text-gray-600';
     case 'jury':
+    case 'observer':
       return 'bg-gray-200 text-gray-600';
     case 'candidat':
       return 'bg-yellow-100 text-yellow-600';
-    case 'user':
+    case 'election_manager':
       return 'bg-green-100 text-green-600';
     default:
       return '';
@@ -61,7 +62,6 @@ export default function Users() {
     currentPage,
     totalPages,
     totalUsers,
-    filters,
     refresh,
     applyFilters,
     clearFilters,
@@ -113,8 +113,8 @@ export default function Users() {
    */
   const handleSave = async (data) => {
     try {
-      if (selected?.id) {
-        await usersApi.update(selected.id, data);
+      if (selected?.uuid) {
+        await usersApi.update(selected.uuid, data);
         toast.success('Utilisateur modifié avec succès');
       } else {
         await usersApi.create(data);
@@ -124,21 +124,21 @@ export default function Users() {
       setOpenModal(false);
       setSelected(null);
     } catch (err) {
-      toast.error(err.message || 'Erreur lors de la sauvegarde');
+      toast.error(err.response?.data?.message || 'Erreur lors de la sauvegarde');
     }
   };
 
   /**
    * Gère la suppression d'un utilisateur
    */
-  const handleDelete = async (id) => {
+  const handleDelete = async (uuid) => {
     if (window.confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
       try {
-        await usersApi.delete(id);
+        await usersApi.delete(uuid);
         toast.success('Utilisateur supprimé');
         refresh();
       } catch (err) {
-        toast.error(err.message || 'Erreur lors de la suppression');
+        toast.error(err.response?.data?.message || 'Erreur lors de la suppression');
       }
     }
   };
@@ -278,10 +278,13 @@ export default function Users() {
           >
             <option value="">Tous les rôles</option>
             <option value="super_admin">Super Admin</option>
-            <option value="admin_org">Admin Org</option>
+            <option value="admin">Admin</option>
+            <option value="organization_owner">Propriétaire d'organisation</option>
+            <option value="election_manager">Gestionnaire d'élection</option>
             <option value="jury">Jury</option>
-            <option value="votant">Votant</option>
+            <option value="observer">Observateur</option>
             <option value="candidat">Candidat</option>
+            <option value="user">Votant</option>
           </select>
         </div>
 
@@ -292,8 +295,9 @@ export default function Users() {
             className="input w-full"
           >
             <option value="">Tous les statuts</option>
-            <option value="Actif">Actif</option>
-            <option value="Inactif">Inactif</option>
+            <option value="active">Actif</option>
+            <option value="inactive">Inactif</option>
+            <option value="suspended">Suspendu</option>
           </select>
         </div>
 
@@ -367,42 +371,40 @@ export default function Users() {
                   const statusDisplay = getStatusDisplay(u);
                   return (
                     <tr
-                      key={u.id}
+                      key={u.uuid}
                       className="border-t border-t-[var(--color-gray-light)] hover:bg-[var(--color-gray-light)] items-center"
                     >
                       <td className="p-3 flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500  flex items-center justify-center text-white text-xs font-bold">
-                          <img src={u.photo} alt={u.last_name} className='w-full h-full' />
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-bold overflow-hidden shrink-0">
+                          {u.photo ? (
+                            <img src={u.photo} alt={u.full_name} className='w-full h-full object-cover' />
+                          ) : (
+                            (u.first_name?.[0] ?? '?').toUpperCase()
+                          )}
                         </div>
                         <span className="font-medium">
-                          {u.name} {u.lastname || ''}
+                          {u.full_name}
                         </span>
                       </td>
 
                       <td className="text-gray-600">{u.email}</td>
 
                       <td>
-                        <select
-                          value={
-                            // supporte role objet ou string
-                            (() => {
-                              const pr = getPrimaryRole(u);
-                              return typeof pr === 'string' ? pr : pr?.name || pr?.id || '';
-                            })()
-                          }
-                          onChange={() => { }}
-                          className="px-2 py-1 text-xs border rounded-md"
-                        >
-                          {u.roles?.map((role) => {
-                            const roleName = typeof role === 'string' ? role : role?.name || role?.id;
-                            const roleKey = typeof role === 'string' ? role : role?.id || roleName;
-                            return (
-                              <option key={roleKey} value={roleName}>
-                                {roleName}
-                              </option>
-                            );
-                          })}
-                        </select>
+                        {/* GET /users renvoie les rôles Spatie tels quels
+                            ({id, name, guard_name, pivot, ...}), pas de simples
+                            chaînes — les rendre directement fait planter React
+                            ("Objects are not valid as a React child"). */}
+                        {(u.roles ?? []).map((role) => {
+                          const roleName = typeof role === 'string' ? role : role.name;
+                          return (
+                            <span
+                              key={roleName}
+                              className={`inline-block px-2 py-1 text-xs rounded-md mr-1 ${badgeRole(roleName)}`}
+                            >
+                              {roleName}
+                            </span>
+                          );
+                        })}
                       </td>
 
                       <td className="text-gray-600">
@@ -427,7 +429,7 @@ export default function Users() {
                           <Pencil size={16} className="text-blue-600" />
                         </button>
                         <button
-                          onClick={() => handleDelete(u.id)}
+                          onClick={() => handleDelete(u.uuid)}
                           className="p-1 hover:bg-red-100 rounded transition-colors"
                           title="Supprimer"
                         >

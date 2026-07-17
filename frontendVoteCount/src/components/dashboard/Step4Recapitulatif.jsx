@@ -184,7 +184,7 @@ const Step4Recapitulatif = ({ data, onPrevious, onPublish, isPublish = false, ha
                                     {/* Avatar */}
                                     <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 shrink-0">
                                         {c.photoPreview ? (
-                                            <img src={c.photoPreview} alt={c.name}
+                                            <img src={c.photo} alt={c.name}
                                                 className="w-full h-full object-cover" />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center">

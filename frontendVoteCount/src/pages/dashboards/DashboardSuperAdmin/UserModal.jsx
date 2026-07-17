@@ -10,13 +10,34 @@ export default function UserModal({ data, onClose, onSave }) {
         email: data?.email || '',
         password: '',
         password_confirmation: '',
-        role: data?.role || 'ADMIN',
-        status: data?.status || 'Actif',
+        // data.roles vient de GET /users : objets Spatie complets
+        // ({id, name, ...}), pas de simples chaînes.
+        role: (typeof data?.roles?.[0] === 'string' ? data.roles[0] : data?.roles?.[0]?.name) || 'user',
+        status: data?.status || 'active',
     });
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        onSave(form);
+
+        if (!form.first_name.trim() || !form.last_name.trim() || !form.email.trim()) {
+            return;
+        }
+        if (!data && !form.password) {
+            return; // mot de passe obligatoire à la création
+        }
+        if (form.password && form.password !== form.password_confirmation) {
+            return;
+        }
+
+        // En édition, un mot de passe vide doit être omis (sinon 422 :
+        // min:8 sur une chaîne vide n'est pas exempté par "nullable").
+        const payload = { ...form };
+        if (!payload.password) {
+            delete payload.password;
+            delete payload.password_confirmation;
+        }
+
+        onSave(payload);
         onClose();
     };
 
@@ -38,11 +59,19 @@ export default function UserModal({ data, onClose, onSave }) {
                 <form onSubmit={handleSubmit} className="p-4 space-y-3">
 
                     <TextInput
-                        placeholder="Nom"
+                        placeholder="Prénom"
                         className="w-full"
                         value={form.first_name}
                         iconLeft={User}
                         onChange={(e) => setForm({ ...form, first_name: e.target.value })}
+                    />
+
+                    <TextInput
+                        placeholder="Nom"
+                        className="w-full"
+                        value={form.last_name}
+                        iconLeft={User}
+                        onChange={(e) => setForm({ ...form, last_name: e.target.value })}
                     />
 
                     <TextInput
@@ -72,10 +101,13 @@ export default function UserModal({ data, onClose, onSave }) {
                         onChange={(e) => setForm({ ...form, role: e.target.value })}
                     >
                         <option value="super_admin">Super Admin</option>
-                        <option value="admin_org">Admin</option>
-                        <option value="jury">jury</option>
+                        <option value="admin">Admin</option>
+                        <option value="organization_owner">Propriétaire d'organisation</option>
+                        <option value="election_manager">Gestionnaire d'élection</option>
+                        <option value="jury">Jury</option>
+                        <option value="observer">Observateur</option>
                         <option value="candidat">Candidat</option>
-                        <option value="elector">Votant</option>
+                        <option value="user">Votant</option>
                     </select>
 
                     <select
@@ -83,9 +115,9 @@ export default function UserModal({ data, onClose, onSave }) {
                         value={form.status}
                         onChange={(e) => setForm({ ...form, status: e.target.value })}
                     >
-                        <option value="active" >Actif</option>
-                        <option value="suspendue" >Suspendu</option>
-                        <option value="inactive">inactif</option>
+                        <option value="active">Actif</option>
+                        <option value="inactive">Inactif</option>
+                        <option value="suspended">Suspendu</option>
                     </select>
                     <button className="btn-primary w-full">
                         Enregistrer

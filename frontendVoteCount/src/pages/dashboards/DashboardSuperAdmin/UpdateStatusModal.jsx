@@ -33,9 +33,11 @@ export default function UpdateStatusModal({ org, onClose, onSuccess, onError }) 
                         className="input w-full"
                     >
                         <option value="">-- Choisir un statut</option>
+                        {/* Enum réel côté backend (organizations.status) :
+                            active, inactive, suspended — "pending"/"expired"
+                            n'existent pas et feraient échouer la requête (422). */}
                         <option value="active">Actif</option>
-                        <option value="pending">En attente</option>
-                        <option value="expired">Expiré</option>
+                        <option value="inactive">Inactif</option>
                         <option value="suspended">Suspendu</option>
                     </select>
 

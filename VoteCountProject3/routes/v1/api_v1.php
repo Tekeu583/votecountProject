@@ -3,6 +3,8 @@
 
 use App\Http\Controllers\Api\V1\Analytics\AnalyticsController;
 use App\Http\Controllers\Api\V1\Audit\AuditController;
+use App\Http\Controllers\Api\V1\Notifications\NotificationController;
+use App\Http\Controllers\Api\V1\Security\SecurityController;
 use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\CandidateApplications\CandidateApplicationController;
 use App\Http\Controllers\Api\V1\CandidateDocuments\CandidateDocumentController;
@@ -163,6 +165,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Paiement de subscription (AUTH REQUISE)
     Route::prefix('subscriptions')->group(function () {
+        Route::get('/', [PaymentController::class, 'adminIndex']);
+        Route::get('stats', [PaymentController::class, 'adminStats']);
         Route::post('initiate', [PaymentController::class, 'initiateSubscription']);
         Route::post('verify', [PaymentController::class, 'verifySubscription']);
         Route::get('status', [PaymentController::class, 'getSubscriptionStatus']);
@@ -298,6 +302,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Audit
     Route::get('audit-logs', [AuditController::class, 'index']);
     Route::get('audit-logs/{auditLog}', [AuditController::class, 'show']);
+
+    // Notifications in-app
+    Route::get('notifications', [NotificationController::class, 'index']);
+    Route::post('notifications', [NotificationController::class, 'store']);
+    Route::post('notifications/{notification}/mark-as-read', [NotificationController::class, 'markAsRead']);
+    Route::delete('notifications/{notification}', [NotificationController::class, 'destroy']);
+
+    // Sécurité (alertes de fraude au vote)
+    Route::get('security/alerts', [SecurityController::class, 'index']);
+    Route::get('security/alerts/stats', [SecurityController::class, 'stats']);
+    Route::post('security/alerts/{securityAlert}/resolve', [SecurityController::class, 'resolve']);
 
     // Revenus (historique des transactions)
     Route::get('payments/transactions', [RevenueController::class, 'index']);

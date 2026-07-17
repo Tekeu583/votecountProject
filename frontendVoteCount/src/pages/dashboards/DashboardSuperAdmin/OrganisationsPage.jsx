@@ -1,4 +1,4 @@
-import { Search, Plus, Pencil, Ban, ChevronLeft, ChevronRight, Building2, CheckCircle, RefreshCw, AlertCircle } from 'lucide-react';
+import { Search, Plus, Pencil, SquarePen, Ban, ChevronLeft, ChevronRight, Building2, CheckCircle, RefreshCw, AlertCircle } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import OrgModal from './OrgModal';
@@ -326,6 +326,13 @@ export default function OrganisationsPage() {
                     <td className="p-2">{org.statistics?.elections_count ?? 0}</td>
 
                     <td className="p-2 flex items-center gap-3">
+                      <button
+                        onClick={() => { setSelected(org); setOpenModal(true); }}
+                        className="text-[var(--color-gray)] hover:text-[var(--color-primary)]"
+                        title="Modifier l'organisation"
+                      >
+                        <SquarePen size={16} />
+                      </button>
                       <button
                         onClick={() => openUpdateStatus(org)}
                         className="text-[var(--color-gray)] hover:text-[var(--color-primary)]"

@@ -36,6 +36,27 @@ export const paymentsApi = {
     getSubscriptionStatus: () => api.get(`${V1}/subscriptions/status`),
 
     /**
+     * GET /api/v1/subscriptions
+     * Liste de tous les abonnements (toutes organisations). Réservé au super admin.
+     * @param {Object} params - { page, per_page, status, search }
+     */
+    getAllSubscriptions: (params = {}) => api.get(`${V1}/subscriptions`, { params }),
+
+    /**
+     * GET /api/v1/subscriptions/stats
+     * Réservé au super admin.
+     */
+    getSubscriptionsStats: () => api.get(`${V1}/subscriptions/stats`),
+
+    // Activer/désactiver le renouvellement automatique
+    toggleAutoRenew: (subscriptionUuid, autoRenew) =>
+        api.patch(`${V1}/subscriptions/${subscriptionUuid}/auto-renew`, { auto_renew: autoRenew }),
+
+    // Annuler un abonnement
+    cancelSubscription: (subscriptionUuid) =>
+        api.delete(`${V1}/subscriptions/${subscriptionUuid}/cancel`),
+
+    /**
      * GET /api/v1/payments/transactions
      * Historique des transactions d'une organisation (Revenus).
      * @param {Object} params - { organization_uuid, page, per_page, status, type, date_from, date_to }

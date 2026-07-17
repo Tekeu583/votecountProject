@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Users;
 
 use App\Http\Controllers\Api\V1\BaseApiController;
+use App\Http\Resources\Api\V1\UserResource;
 use App\Models\User;
 use App\Services\RoleService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -30,12 +31,12 @@ class UserController extends BaseApiController
             $status = $request->get('status');
 
             // Construire la requête
+            // mediaFiles/notifications retirés : non exposés par UserResource,
+            // chargés pour rien sur toute la liste.
             $query = User::with([
                 'roles',
                 'organizations',
                 'elections',
-                'mediaFiles',
-                'notifications',
             ]);
 
             // Recherche par nom ou email
@@ -60,12 +61,19 @@ class UserController extends BaseApiController
             // Pagination
             $paginated = $query->orderBy('created_at', 'desc')->paginate($limit, ['*'], 'page', $page);
 
+            // Sérialisation brute des modèles (avant) omettait full_name (un
+            // accesseur, jamais dans $appends), renvoyait 'photo' en chemin
+            // relatif (pas l'URL complète) et 'roles' en objets Spatie complets
+            // au lieu de simples noms — cassait l'affichage de ces 3 colonnes
+            // sur Users.jsx/AdminsPage.jsx. UserResource gère déjà tout ça.
+            $users = UserResource::collection($paginated->items())->resolve();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Utilisateurs récupérés avec succès',
                 'data' => [
-                    'users' => $paginated->items(),
-                    'data' => $paginated->items(), // Pour compatibilité
+                    'users' => $users,
+                    'data' => $users, // Pour compatibilité
                     'pagination' => [
                         'total' => $paginated->total(),
                         'per_page' => $paginated->perPage(),

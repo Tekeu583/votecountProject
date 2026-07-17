@@ -170,7 +170,7 @@ class AuthController extends BaseApiController
             ]);
         }
 
-        Auth::logout();
+        Auth::guard('web')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
@@ -199,9 +199,6 @@ class AuthController extends BaseApiController
         $user = $request->user();
 
         if ($request->hasFile('photo')) {
-            // Ne supprime l'ancien fichier que s'il s'agit bien d'un chemin de
-            // stockage local — certains comptes de démo/seed ont une URL
-            // externe complète en `photo`, jamais présente sur ce disque.
             if ($user->photo && ! str_starts_with($user->photo, 'http')) {
                 Storage::disk('public')->delete($user->photo);
             }

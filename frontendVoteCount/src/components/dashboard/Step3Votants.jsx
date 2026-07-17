@@ -49,6 +49,25 @@ const Step3Votants = ({ onNext, onPrevious, initialData = {}, electionMode = 'pu
     const [importJobId, setImportJobId] = useState(null);
     const pollIntervalRef = useRef(null);
 
+    // Électeurs déjà en base pour cette élection au moment où l'étape se
+    // charge (import précédent, reprise de brouillon...). Sans ça, revenir
+    // sur l'étape avec des électeurs déjà créés mais aucun nouveau fichier
+    // sélectionné bloque à tort la validation d'une élection privée.
+    const [existingElectorsCount, setExistingElectorsCount] = useState(0);
+
+    useEffect(() => {
+        if (!electionUuid) return;
+        let cancelled = false;
+        electorsApi.getAll(electionUuid, { per_page: 1 })
+            .then(res => {
+                if (!cancelled) setExistingElectorsCount(res.data?.meta?.total ?? 0);
+            })
+            .catch(() => {
+                // non bloquant
+            });
+        return () => { cancelled = true; };
+    }, [electionUuid]);
+
     // Mode saisie manuelle
     const [manualVotants, setManualVotants] = useState(initialData.manualVotants || []);
     const [newVotant, setNewVotant] = useState({ nom: '', email: '', telephone: '' });
@@ -299,10 +318,13 @@ const Step3Votants = ({ onNext, onPrevious, initialData = {}, electionMode = 'pu
             // previewCount n'est renseigné qu'après un import réellement
             // abouti côté serveur (ou une saisie manuelle) — un fichier
             // simplement sélectionné (uploadedFile !== null) ne garantit pas
-            // qu'un seul électeur ait été créé en base.
+            // qu'un seul électeur ait été créé en base. Mais s'il y a déjà
+            // des électeurs en base (import précédent, reprise de brouillon)
+            // et qu'aucun nouveau fichier n'a été sélectionné, on continue :
+            // pas besoin de réimporter pour avancer.
             const hasGroupedData = importMethod === 'grouped'
-                ? previewCount > 0
-                : manualVotants.length > 0;
+                ? (previewCount > 0 || existingElectorsCount > 0)
+                : (manualVotants.length > 0 || existingElectorsCount > 0);
 
             if (!hasGroupedData) {
                 toast.error("Une élection privée requiert au moins un électeur créé dans la liste");
@@ -310,9 +332,12 @@ const Step3Votants = ({ onNext, onPrevious, initialData = {}, electionMode = 'pu
             }
         }
 
-        const totalVotants = importMethod === 'grouped'
-            ? (previewCount || (uploadedFile ? null : 0)) // null = inconnu avant import serveur (cas xlsx)
-            : manualVotants.length;
+        // previewCount reflète toujours un import terminé (on bloque "Suivant"
+        // pendant qu'un import est en cours), donc plus besoin de valeur
+        // "inconnue" en attendant une réponse serveur.
+        const totalVotants = existingElectorsCount + (importMethod === 'grouped'
+            ? previewCount
+            : manualVotants.length);
 
         console.log(' Données envoyées à Step4:', {
             importMethod,
@@ -383,6 +408,15 @@ const Step3Votants = ({ onNext, onPrevious, initialData = {}, electionMode = 'pu
                                 L'accès se fait via un lien ou code. Vous pouvez optionnellement pré-définir une liste d'électeurs autorisés.
                             </p>
                         </div>
+                    </div>
+                )}
+
+                {!isPublic && existingElectorsCount > 0 && (
+                    <div className="flex items-start gap-3 p-5 bg-green-50 border border-green-200 rounded-[var(--radius-md)]">
+                        <Users size={20} className="text-green-600 shrink-0 mt-0.5" />
+                        <p className="text-sm text-green-800">
+                            <span className="font-medium">{existingElectorsCount} électeur(s)</span> déjà enregistré(s) pour cette élection. Vous pouvez continuer sans réimporter, ou ajouter des électeurs supplémentaires ci-dessous.
+                        </p>
                     </div>
                 )}
 
