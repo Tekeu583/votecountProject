@@ -8,7 +8,7 @@ import {
 import TextInput from '@components/ui/TextInput';
 import toast from 'react-hot-toast';
 import { useDebounce } from '@hooks/useDebounce';
-import { electorsApi, electionsApi } from '@services/api';
+import { electorsApi, electionsApi, organizationsApi } from '@services/api';
 import { useOrg } from '@hooks/useOrg';
 import { FadeLoader } from 'react-spinners';
 import ElecteursModal from './ElecteursModal';
@@ -79,75 +79,48 @@ const Electeurs = () => {
   }, [org?.uuid]);
 
   // --- Chargement des électeurs -------------------
-  // Une seule requête paginée côté serveur.
-  // Si aucune élection sélectionnée, boucle sur toutes (même pattern que Candidats).
+  // Un seul appel serveur, paginé et filtré côté backend
+  // (organizationsApi.getElectors) — plutôt qu'un fan-out d'une requête par
+  // élection (même correctif que Candidats.jsx : jusqu'à N requêtes HTTP en
+  // parallèle rien que pour afficher 15 lignes).
   const loadElectors = useCallback(async (p = 1) => {
     if (!org?.uuid) return;
     setLoading(true);
     try {
-      if (electionFilter !== 'all') {
-        // Élection spécifique → une requête paginée serveur
-        const res = await electorsApi.getAll(electionFilter, {
-          page: p,
-          per_page: PER_PAGE,
-          search: debouncedSearch || undefined,
-          has_voted: statusFilter !== 'all' ? statusFilter === 'voted' : undefined,
-          verification_status: verificationFilter !== 'all' ? verificationFilter : undefined,
-        });
-        const list = (res.data?.data ?? []).map(e => ({
-          ...e,
-          electionTitle: elections.find(el => el.uuid === electionFilter)?.title ?? '—',
-          electionUuid: electionFilter,
-        }));
-        setElectors(list);
-        setTotal(res.data?.meta?.total ?? list.length);
-        setLastPage(res.data?.meta?.last_page ?? 1);
-        setSelectedIds(new Set());
-      } else {
-        // Toutes les élections — boucle parallèle (même pattern que Candidats)
-        const results = await Promise.allSettled(
-          elections.map(election =>
-            electorsApi.getAll(election.uuid, {
-              per_page: 100,
-              search: debouncedSearch || undefined,
-              has_voted: statusFilter !== 'all' ? statusFilter === 'voted' : undefined,
-              verification_status: verificationFilter !== 'all' ? verificationFilter : undefined,
-            }).then(res => (res.data?.data ?? []).map(e => ({
-              ...e,
-              electionTitle: election.title,
-              electionUuid: election.uuid,
-            })))
-          )
-        );
+      const res = await organizationsApi.getElectors(org.uuid, {
+        page: p,
+        per_page: PER_PAGE,
+        search: debouncedSearch || undefined,
+        election_uuid: electionFilter !== 'all' ? electionFilter : undefined,
+        has_voted: statusFilter !== 'all' ? statusFilter === 'voted' : undefined,
+        verification_status: verificationFilter !== 'all' ? verificationFilter : undefined,
+      });
 
-        const all = results
-          .filter(r => r.status === 'fulfilled')
-          .flatMap(r => r.value);
-
-        setTotal(all.length);
-        setLastPage(Math.max(1, Math.ceil(all.length / PER_PAGE)));
-        setElectors(all.slice((p - 1) * PER_PAGE, p * PER_PAGE));
-      }
+      setElectors(res.data?.data ?? []);
+      setTotal(res.data?.meta?.total ?? 0);
+      setLastPage(res.data?.meta?.last_page ?? 1);
+      setSelectedIds(new Set());
     } catch (err) {
       toast.error(err.response?.data?.message ?? 'Erreur de chargement des électeurs.');
       setElectors([]);
     } finally {
       setLoading(false);
     }
-  }, [org?.uuid, electionFilter, debouncedSearch, statusFilter, elections]);
+  }, [org?.uuid, electionFilter, debouncedSearch, statusFilter, verificationFilter]);
 
   const currentElection = elections.find(e => e.uuid === electionFilter);
 
   // Se déclenche 500ms après la dernière frappe, pas à chaque touche.
   useEffect(() => {
-    if (elections.length === 0 && electionFilter === 'all') return;
+    if (!org?.uuid) return;
     setPage(1);
     loadElectors(1);
-  }, [electionFilter, statusFilter, debouncedSearch, elections]);
+  }, [org?.uuid, electionFilter, statusFilter, verificationFilter, debouncedSearch, loadElectors]);
 
   useEffect(() => {
+    if (!org?.uuid || page === 1) return;
     loadElectors(page);
-  }, [page]);
+  }, [page, loadElectors, org?.uuid]);
 
   // --- Sélection -----------------------------------
   const toggleSelect = (uuid) => {
@@ -229,7 +202,7 @@ const Electeurs = () => {
   const handleDelete = async (elector) => {
     if (!window.confirm(`Supprimer ${elector.full_name} ?`)) return;
     try {
-      await electorsApi.delete(elector.electionUuid, elector.uuid);
+      await electorsApi.delete(elector.election?.uuid, elector.uuid);
       toast.success('Électeur supprimé.');
       loadElectors(page);
     } catch (err) {
@@ -244,7 +217,7 @@ const Electeurs = () => {
     }
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.csv,.xlsx,.xls';
+    input.accept = '.xlsx,.xls,.csv';
     input.onchange = async (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
@@ -359,7 +332,6 @@ const Electeurs = () => {
             />
           </div>
 
-          {/* FIX (Claude): NOUVEAU — filtre par statut de vérification */}
           <div className="flex flex-col min-w-[160px]">
             <span className="text-xs text-[var(--color-gray)] mb-1.5 hidden sm:block">Vérification</span>
             <select
@@ -465,7 +437,7 @@ const Electeurs = () => {
                       {elector.email ?? '—'}
                     </td>
                     <td className="px-4 py-3 text-[var(--color-gray)] hidden md:table-cell truncate max-w-[200px]">
-                      {elector.electionTitle}
+                      {elector.election?.title}
                     </td>
                     <td className="px-4 py-3">
                       <VoteBadge hasVoted={elector.has_voted} />

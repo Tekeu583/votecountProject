@@ -7,9 +7,11 @@ use App\Http\Controllers\Api\V1\BaseApiController;
 use App\Http\Requests\Api\V1\Organizations\CreateOrganizationRequest;
 use App\Http\Requests\Api\V1\Organizations\UpdateOrganizationRequest;
 use App\Http\Resources\Api\V1\CandidateResource;
+use App\Http\Resources\Api\V1\ElectorResource;
 use App\Http\Resources\Api\V1\OrganizationResource;
 use App\Models\Candidate;
 use App\Models\Election;
+use App\Models\Elector;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\OrganizationService;
@@ -58,7 +60,13 @@ class OrganizationController extends BaseApiController
             });
         }
 
+        // withCount + subscriptions : sans ça, OrganizationResource relance 4
+        // requêtes (abonnement actif x2, nb élections, nb membres) PAR organisation
+        // listée au lieu d'une passe d'eager-load unique (même correctif que
+        // getCandidates() ci-dessous).
         $organizations = $query->with('owner')
+            ->withCount(['elections', 'users'])
+            ->with('subscriptions')
             ->orderBy('created_at', 'desc')
             ->paginate($request->get('per_page', 15));
 
@@ -117,6 +125,60 @@ class OrganizationController extends BaseApiController
 
         return $this->paginated($candidates, CandidateResource::class);
     }
+
+    /**
+     * GET /api/v1/organizations/{organization}/electors
+     *
+     * Tous les électeurs d'une organisation en une seule requête paginée
+     * côté serveur — même correctif que getCandidates() : Electeurs.jsx
+     * faisait jusqu'à une requête HTTP par élection pour construire la vue
+     * "toutes les élections".
+     */
+    public function getElectors(Organization $organization, Request $request): JsonResponse
+    {
+        $user = Auth::user();
+        $isMember = $organization->users()->where('users.id', $user->id)->exists()
+            || $organization->owner_user_id === $user->id;
+
+        if (! $isMember && ! $user->hasRole('super_admin')) {
+            return $this->forbidden('Accès non autorisé à cette organisation');
+        }
+
+        $query = Elector::query()
+            ->whereHas('election', function ($q) use ($organization) {
+                $q->where('organization_id', $organization->id);
+            })
+            ->with('election');
+
+        if ($request->filled('election_uuid')) {
+            $query->whereHas('election', function ($q) use ($request) {
+                $q->where('uuid', $request->election_uuid);
+            });
+        }
+
+        if ($request->has('has_voted')) {
+            $query->where('has_voted', $request->boolean('has_voted'));
+        }
+
+        if ($request->filled('verification_status')) {
+            $query->where('verification_status', $request->verification_status);
+        }
+
+        if ($request->filled('search')) {
+            $query->where(function ($q) use ($request) {
+                $q->where('full_name', 'ilike', '%' . $request->search . '%')
+                    ->orWhere('email', 'ilike', '%' . $request->search . '%')
+                    ->orWhere('phone', 'ilike', '%' . $request->search . '%');
+            });
+        }
+
+        $electors = $query
+            ->orderBy('created_at', 'desc')
+            ->paginate($request->integer('per_page', 15));
+
+        return $this->paginated($electors, ElectorResource::class);
+    }
+
     /**
      * recuperer les organisations de l'utilisateur connecte
      * @OA\Get(
@@ -149,6 +211,8 @@ class OrganizationController extends BaseApiController
             $organizations = $user->organizations()
                 ->wherePivot('status', 'active')
                 ->with('owner')
+                ->withCount(['elections', 'users'])
+                ->with('subscriptions')
                 ->get();
 
             // Vérifier si la collection est vide

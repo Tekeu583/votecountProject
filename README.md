@@ -212,7 +212,7 @@ php artisan reverb:start
 
 php artisan queue:work
 
-php artisan shedule:work
+php artisan schedule:work
 ```
 
 ```bash

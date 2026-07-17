@@ -19,6 +19,12 @@ class ElectorResource extends JsonResource
             'verification_status' => $this->verification_status,
             'verified_at' => $this->verified_at?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
+
+            'election' => $this->whenLoaded('election', fn () => [
+                'uuid' => $this->election->uuid,
+                'title' => $this->election->title,
+                'election_mode' => $this->election->election_mode,
+            ]),
         ];
     }
 }

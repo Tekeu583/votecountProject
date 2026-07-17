@@ -432,6 +432,12 @@ class VoteController extends BaseApiController
             ->orderBy('created_at', 'desc')
             ->paginate($request->input('per_page', 15));
 
+        // VoteResource lit $this->election?->currency sans garde whenLoaded —
+        // sans ça, chaque vote relançait un lazy load de la MÊME élection déjà
+        // en mémoire (route model binding). setRelation évite la requête
+        // entièrement plutôt que de la dupliquer via with('election').
+        $votes->getCollection()->each(fn ($vote) => $vote->setRelation('election', $election));
+
         return $this->paginated($votes, VoteResource::class);
     }
 

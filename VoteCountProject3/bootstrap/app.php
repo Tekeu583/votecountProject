@@ -17,7 +17,6 @@ use Illuminate\Auth\Middleware\AuthenticateWithBasicAuth;
 use Illuminate\Auth\Middleware\Authorize;
 use Illuminate\Auth\Middleware\EnsureEmailIsVerified;
 use Illuminate\Auth\Middleware\RequirePassword;
-use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -26,11 +25,8 @@ use Illuminate\Foundation\Http\Middleware\HandlePrecognitiveRequests;
 use Illuminate\Foundation\Http\Middleware\ValidatePostSize;
 use Illuminate\Http\Middleware\HandleCors;
 use Illuminate\Http\Middleware\SetCacheHeaders;
-use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Session\Middleware\AuthenticateSession;
-use Illuminate\Session\Middleware\StartSession;
-use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
@@ -63,22 +59,14 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         // === Groupes de Middlewares ===
-        $middleware->web(append: [
-            EncryptCookies::class,
-            AddQueuedCookiesToResponse::class,
-            StartSession::class,
-            ShareErrorsFromSession::class,
-            VerifyCsrfToken::class,
-            SubstituteBindings::class,
+        $middleware->web(replace: [
+            \Illuminate\Cookie\Middleware\EncryptCookies::class => EncryptCookies::class,
+            \Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class => VerifyCsrfToken::class,
         ]);
 
         $middleware->api(append: [
-            EnsureFrontendRequestsAreStateful::class, // Décommente si tu utilises Sanctum
-            EncryptCookies::class,
-            AddQueuedCookiesToResponse::class,
-            StartSession::class,
+            EnsureFrontendRequestsAreStateful::class,
             'throttle:api',
-            SubstituteBindings::class,
             ForceJsonResponse::class,
             LogApiRequest::class,
         ]);

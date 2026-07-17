@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Analytics;
 
 use App\Http\Controllers\Api\V1\BaseApiController;
 use App\Models\Election;
+use App\Models\Elector;
 use App\Models\Organization;
 use App\Models\PaymentTransaction;
 use App\Services\AnalyticsService;
@@ -69,10 +70,30 @@ class AnalyticsController extends BaseApiController
      */
     private function averageParticipationRate(Builder $electionsQuery): float
     {
-        $rates = (clone $electionsQuery)
+        // Election::getParticipationRate() lance electors()->count() par
+        // élection — appelée ici sur la page d'accueil du dashboard (trafic
+        // élevé), ça revenait à un count() par élection privée/restreinte
+        // de l'organisation. Un seul GROUP BY remplace ces N requêtes.
+        $elections = (clone $electionsQuery)
             ->where('election_mode', '!=', 'public')
-            ->get()
-            ->map(fn (Election $election) => $election->getParticipationRate())
+            ->get(['id', 'total_votes']);
+
+        if ($elections->isEmpty()) {
+            return 0;
+        }
+
+        $eligibleCounts = Elector::whereIn('election_id', $elections->pluck('id'))
+            ->where('status', 'active')
+            ->selectRaw('election_id, count(*) as total')
+            ->groupBy('election_id')
+            ->pluck('total', 'election_id');
+
+        $rates = $elections
+            ->map(function (Election $election) use ($eligibleCounts) {
+                $total = $eligibleCounts[$election->id] ?? 0;
+
+                return $total > 0 ? ($election->total_votes / $total) * 100 : 0;
+            })
             ->filter(fn ($rate) => $rate > 0);
 
         return $rates->isEmpty() ? 0 : round($rates->avg(), 2);

@@ -137,7 +137,11 @@ class ElectorController extends BaseApiController
             'status' => 'pending',
         ]);
 
-        ProcessElectorImport::dispatch($importJob, $election)->onQueue('imports');
+        // Pas de queue nommée 'imports' : aucun worker de ce projet n'écoute
+        // une queue autre que 'default' (ni Procfile, ni service dédié) — ce
+        // job y restait bloqué indéfiniment en "pending" sans jamais être
+        // traité. Reste sur la queue par défaut, comme tous les autres jobs.
+        ProcessElectorImport::dispatch($importJob, $election);
 
         return $this->accepted([
             'import_job_id' => $importJob->uuid,
@@ -163,9 +167,6 @@ class ElectorController extends BaseApiController
      * Permet de renvoyer le voter_code aux électeurs déjà créés avant la mise
      * en place de l'envoi automatique (ElectorService::create / ProcessElectorImport).
      *
-     * Body attendu (optionnel) :
-     *   { "elector_uuids": ["uuid1", "uuid2"] }   → envoi ciblé
-     *   {} ou body vide                            → envoi à TOUS les électeurs actifs
      */
     public function sendVoterCodes(Request $request, Election $election): JsonResponse
     {

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
 import { User, Mail, Phone, X, Loader2 } from 'lucide-react';
-import toast from 'react-hot-toast';
 import TextInput from '@components/ui/TextInput';
 import { electorsApi } from '@services/api';
 
@@ -14,7 +13,7 @@ export default function ElecteursModal({ data, elections, onSuccess, onError, on
         phone: data?.phone || '',
         // En édition, l'élection est déjà fixée (l'API ne permet pas de la
         // changer) ; en création, l'admin doit en choisir une.
-        election_uuid: data?.electionUuid || '',
+        election_uuid: data?.election?.uuid || '',
     });
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState({});
@@ -45,7 +44,7 @@ export default function ElecteursModal({ data, elections, onSuccess, onError, on
         setSubmitting(true);
         try {
             if (isEdit) {
-                await electorsApi.update(data.electionUuid, data.uuid, payload);
+                await electorsApi.update(data.election?.uuid, data.uuid, payload);
                 onSuccess('Électeur mis à jour avec succès.');
             } else {
                 await electorsApi.create(form.election_uuid, payload);
@@ -162,7 +161,7 @@ ElecteursModal.propTypes = {
         full_name: PropTypes.string,
         email: PropTypes.string,
         phone: PropTypes.string,
-        electionUuid: PropTypes.string,
+        election: PropTypes.shape({ uuid: PropTypes.string }),
     }),
     elections: PropTypes.arrayOf(PropTypes.shape({
         uuid: PropTypes.string.isRequired,

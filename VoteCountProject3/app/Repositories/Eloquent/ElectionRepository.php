@@ -203,11 +203,18 @@ class ElectionRepository extends BaseRepository implements ElectionRepositoryInt
 
         return $query
             ->with([
-                'organization.subscriptionPlan',
-                'organization.owner.roles.permissions',
+                // withCount/subscriptions sur 'organization' : sans ça,
+                // OrganizationResource relance 4 requêtes (abonnement actif x2,
+                // nb élections, nb membres) PAR élection listée (même correctif
+                // que OrganizationController::index()/getCandidates()).
+                'organization' => fn ($q) => $q->with(['subscriptionPlan', 'subscriptions', 'owner.roles.permissions'])->withCount(['elections', 'users']),
                 'creator.roles.permissions',
                 'candidates',
-                'candidates.category',
+                // withCount('candidates') sur la catégorie : sans ça,
+                // CategoryResource relance candidates()->count() PAR candidat
+                // affiché (une élection avec catégories peut afficher
+                // plusieurs candidats partageant la même catégorie).
+                'candidates.category' => fn ($q) => $q->withCount('candidates'),
             ])
             ->withCount(['votes', 'candidates', 'electors'])
             ->orderBy('created_at', 'desc')

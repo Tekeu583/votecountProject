@@ -108,4 +108,16 @@ export const organizationsApi = {
         */
     getCandidates: (orgUuid, params = {}) =>
         api.get(`${V1}/organizations/${orgUuid}/candidates`, { params }),
+
+    /**
+     * GET /api/v1/organizations/{organization}/electors
+     *
+     * Endpoint consolidé : tous les électeurs d'une organisation en une
+     * seule requête paginée côté serveur (même pattern que getCandidates).
+     *
+     * @param {string} orgUuid
+     * @param {Object} params - { page, per_page, search, election_uuid, has_voted, verification_status }
+     */
+    getElectors: (orgUuid, params = {}) =>
+        api.get(`${V1}/organizations/${orgUuid}/electors`, { params }),
 };

@@ -77,17 +77,8 @@ const VERIFICATION_MODES = [
 
 const CURRENCIES = ['XAF', 'EUR', 'USD', 'GBP', 'XOF'];
 
-// Un <input type="datetime-local"> renvoie une chaîne naïve ("2026-07-14T20:50",
-// sans fuseau) — `new Date(...)` l'interprète comme une heure LOCALE au
-// navigateur, donc .toISOString() donne bien l'UTC correspondant. Sans cette
-// conversion, le backend (toujours en UTC) traite l'heure locale saisie
-// comme si c'était déjà de l'UTC — l'élection démarre alors avec le décalage
-// horaire de l'utilisateur en retard sur l'heure prévue.
 const toUtcIso = (localDatetime) => (localDatetime ? new Date(localDatetime).toISOString() : null);
 
-// Calculée une seule fois au chargement du module (pas pendant le rendu
-// d'un composant — Date.now() y est interdit par la règle react-hooks/purity).
-// Une minute de marge sur "maintenant" pour l'attribut min du champ date d'ouverture.
 const MIN_START_AT = new Date(Date.now() + 60000).toISOString().slice(0, 16);
 
 const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
@@ -124,9 +115,6 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
         has_categories: initialData.has_categories ?? false,
         scrutin_type: initialData.scrutin_type ?? '',
 
-        // Pondération vote public / jury (vote_type = weighted) — stockées
-        // en % côté formulaire, converties en fractions 0-1 avant envoi
-        // (mêmes défauts que la DB : 100% public / 0% jury).
         public_weight_pct: initialData.public_weight != null ? Math.round(initialData.public_weight * 100) : 100,
         jury_weight_pct: initialData.jury_weight != null ? Math.round(initialData.jury_weight * 100) : 0,
     });
@@ -147,11 +135,6 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
         const { name, value, type, checked } = e.target;
         setField(name, type === 'checkbox' ? checked : value);
     };
-
-    // Le vote multiple répartit un montant par candidat (amount / vote_price) —
-    // il n'a de sens que pour une élection payante. On force payment_type à
-    // "paid" dès la sélection pour éviter la combinaison invalide plutôt que
-    // de laisser l'utilisateur la découvrir seulement à la soumission.
     const handleVoteTypeChange = (e) => {
         const { value } = e.target;
         setForm(prev => ({
@@ -167,8 +150,6 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
         });
     };
 
-    // Les deux poids sont toujours liés pour sommer à 100 — évite un état
-    // invalide (somme ≠ 100) plutôt que de le signaler après coup.
     const setPublicWeightPct = (value) => {
         const v = Math.max(0, Math.min(100, Number(value) || 0));
         setForm(prev => ({ ...prev, public_weight_pct: v, jury_weight_pct: 100 - v }));

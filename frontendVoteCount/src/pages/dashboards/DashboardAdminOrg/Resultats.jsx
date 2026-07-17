@@ -142,9 +142,6 @@ const Resultats = () => {
       setRecalculating(false);
     }
   };
-  useEffect(() => {
-    console.log('rows mis à jour:', rows);
-  }, [rows]);
   const pieData = buildPieData(rows);
   const totalVotes = rows.reduce((sum, r) => sum + r.voix, 0);
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));

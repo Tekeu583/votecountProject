@@ -7,6 +7,7 @@ use App\Models\Election;
 use App\Models\Elector;
 use App\Models\ImportJob;
 use App\Notifications\VoterCodeNotification;
+use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -19,7 +20,7 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ProcessElectorImport implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, SerializesModels;
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected ImportJob $importJob;
 
@@ -57,7 +58,7 @@ class ProcessElectorImport implements ShouldQueue
             try {
                 $this->validateRow($row);
 
-                Elector::create([
+                $elector = Elector::create([
                     'election_id' => $this->election->id,
                     'full_name' => $row[0],
                     'email' => $row[1],
@@ -65,23 +66,13 @@ class ProcessElectorImport implements ShouldQueue
                     'import_batch_id' => $this->importJob->uuid,
                     'imported_by' => $this->importJob->imported_by,
                 ]);
-
                 if (
                     $this->election->election_mode === 'private'
                     && $this->election->voter_code
                     && ! empty($row[1])
                 ) {
                     Notification::route('mail', $row[1])
-                        ->notify(new VoterCodeNotification($this->election, $row[0]));
-                }
-
-                if (
-                    $this->election->election_mode === 'private'
-                    && $this->election->voter_code
-                    && ! empty($row[1])
-                ) {
-                    Notification::route('mail', $row[1])
-                        ->notify(new VoterCodeNotification($this->election, $row[0]));
+                        ->notify(new VoterCodeNotification($this->election, $elector));
                     $voterCodesSent++;
                 }
 

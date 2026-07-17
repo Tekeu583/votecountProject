@@ -201,9 +201,7 @@ class ElectionController extends BaseApiController
         $election->setRelation('candidates', $candidatesQuery->get());
 
         $election->load([
-            'organization',
-            'organization.subscriptionPlan',
-            'organization.owner',
+            'organization' => fn ($q) => $q->with(['subscriptionPlan', 'owner', 'subscriptions'])->withCount(['elections', 'users']),
             'creator',
             'settings',
         ]);
@@ -217,11 +215,6 @@ class ElectionController extends BaseApiController
 
         $election->loadCount($countsToLoad);
 
-        // Scores live pré-calculés au chargement de la page, pour que la barre
-        // de résultats/le badge "classement provisoire" (ranked) s'affichent
-        // immédiatement sans attendre le prochain vote (seul déclencheur du
-        // broadcast WebSocket). Même calcul que celui utilisé pour le flux
-        // privé (VoteController::verifyAccessOtp/submitPrivate).
         $data = (new ElectionResource($election))->resolve();
         $data['live_scores'] = $election->real_time_results
             ? LiveResultsUpdated::computeScores($election)
@@ -400,9 +393,7 @@ class ElectionController extends BaseApiController
         $election->setRelation('candidates', $candidatesQuery->get());
 
         $election->load([
-            'organization',
-            'organization.subscriptionPlan',
-            'organization.owner',
+            'organization' => fn ($q) => $q->with(['subscriptionPlan', 'owner', 'subscriptions'])->withCount(['elections', 'users']),
             'creator',
             'settings',
         ]);

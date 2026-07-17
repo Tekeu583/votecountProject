@@ -6,6 +6,7 @@ use App\Events\ResultsCalculated;
 use App\Models\Candidate;
 use App\Models\Election;
 use App\Models\Result;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class ResultService
@@ -25,9 +26,29 @@ class ResultService
                 $irv = $this->irvTabulationService->tabulate($election, $candidates);
                 $results = $this->buildRankedResults($irv, $candidates);
             } else {
+                // Agrégats précalculés une seule fois pour TOUTE l'élection
+                // (au lieu de re-requêter, à l'identique, pour chaque candidat
+                // dans la boucle ci-dessous — le nombre de requêtes ne dépend
+                // plus du nombre de candidats).
+                $voteAggregates = $this->voteAggregatesByCandidate($election);
+                $totalValidVotes = (int) ($voteAggregates->sum('total_quantity'));
+                $criteria = $election->vote_type->value === 'weighted'
+                    ? $election->juryCriteria()->get(['id', 'weight', 'max_score'])
+                    : collect();
+                $juryAverages = $criteria->isNotEmpty()
+                    ? $this->juryScoreAveragesByCandidateAndCriteria($election)
+                    : collect();
+
                 $results = [];
                 foreach ($candidates as $candidate) {
-                    $results[] = $this->calculateCandidateResult($election, $candidate);
+                    $results[] = $this->calculateCandidateResult(
+                        $election,
+                        $candidate,
+                        $voteAggregates->get($candidate->id),
+                        $totalValidVotes,
+                        $criteria,
+                        $juryAverages->get($candidate->id, collect())
+                    );
                 }
 
                 // Calculate rankings
@@ -82,35 +103,62 @@ class ResultService
         });
     }
 
-    protected function calculateCandidateResult(Election $election, Candidate $candidate): array
+    /**
+     * SUM(quantity) et AVG(score) des vote_items complétés, groupés par
+     * candidat, en une seule requête pour toute l'élection.
+     */
+    protected function voteAggregatesByCandidate(Election $election): Collection
     {
-        // Get votes for this candidate
-        $voteItems = DB::table('vote_items')
+        return DB::table('vote_items')
             ->join('votes', 'vote_items.vote_id', '=', 'votes.id')
-            ->where('vote_items.candidate_id', $candidate->id)
             ->where('votes.election_id', $election->id)
             ->where('votes.status', 'completed')
-            ->get();
+            ->select('vote_items.candidate_id')
+            ->selectRaw('SUM(vote_items.quantity) as total_quantity')
+            ->selectRaw('AVG(vote_items.score) as avg_score')
+            ->groupBy('vote_items.candidate_id')
+            ->get()
+            ->keyBy('candidate_id');
+    }
 
-        $totalVotes = $voteItems->sum('quantity');
+    /**
+     * AVG(score) des jury_scores, groupés par candidat PUIS par critère, en
+     * une seule requête pour toute l'élection.
+     *
+     * @return Collection<int, Collection<int, float>>
+     */
+    protected function juryScoreAveragesByCandidateAndCriteria(Election $election): Collection
+    {
+        return DB::table('jury_scores')
+            ->where('election_id', $election->id)
+            ->select('candidate_id', 'criteria_id')
+            ->selectRaw('AVG(score) as avg_score')
+            ->groupBy('candidate_id', 'criteria_id')
+            ->get()
+            ->groupBy('candidate_id')
+            ->map(fn ($rows) => $rows->keyBy('criteria_id'));
+    }
+
+    protected function calculateCandidateResult(
+        Election $election,
+        Candidate $candidate,
+        ?object $voteAggregate,
+        int $totalValidVotes,
+        Collection $criteria,
+        Collection $juryAveragesForCandidate
+    ): array {
+        $totalVotes = (int) ($voteAggregate->total_quantity ?? 0);
 
         // Calculate based on vote type (ranked elections never reach this method - see calculateResults())
         switch ($election->vote_type->value) {
             case 'score':
-                $averageScore = $voteItems->avg('score') ?? 0;
+                $averageScore = $voteAggregate->avg_score ?? 0;
                 $finalScore = $averageScore;
                 break;
 
             default:
                 $finalScore = $totalVotes;
         }
-
-        // Calculate percentage
-        $totalValidVotes = DB::table('vote_items')
-            ->join('votes', 'vote_items.vote_id', '=', 'votes.id')
-            ->where('votes.election_id', $election->id)
-            ->where('votes.status', 'completed')
-            ->sum('vote_items.quantity');
 
         $percentage = $totalValidVotes > 0 ? ($totalVotes / $totalValidVotes) * 100 : 0;
 
@@ -119,7 +167,7 @@ class ResultService
         // être affectés par jury_weight (bug latent corrigé - avant, ce bloc
         // se déclenchait pour n'importe quel vote_type dès que jury_weight > 0).
         if ($election->vote_type->value === 'weighted') {
-            $juryNote = $this->calculateJuryNote($election, $candidate);
+            $juryNote = $this->calculateJuryNote($criteria, $juryAveragesForCandidate);
             // La part de voix publique (0-100%) est ramenée sur 0-10 pour être
             // sur la même échelle que la note jury (déjà normalisée sur 10 par
             // calculateJuryNote - pas de seconde division ici).
@@ -148,9 +196,8 @@ class ResultService
      * criteria.weight, avant moyenne - un critère noté sur 5 ne doit pas être
      * écrasé par un critère noté sur 20.
      */
-    protected function calculateJuryNote(Election $election, Candidate $candidate): float
+    protected function calculateJuryNote(Collection $criteria, Collection $juryAveragesForCandidate): float
     {
-        $criteria = $election->juryCriteria()->get(['id', 'weight', 'max_score']);
         if ($criteria->isEmpty()) {
             return 0;
         }
@@ -158,10 +205,7 @@ class ResultService
         $weightedSum = 0;
         $weightTotal = 0;
         foreach ($criteria as $criterion) {
-            $avgScore = DB::table('jury_scores')
-                ->where('candidate_id', $candidate->id)
-                ->where('criteria_id', $criterion->id)
-                ->avg('score') ?? 0;
+            $avgScore = $juryAveragesForCandidate->get($criterion->id)?->avg_score ?? 0;
 
             $normalized = $criterion->max_score > 0 ? ($avgScore / $criterion->max_score) * 10 : 0;
             $weightedSum += $normalized * $criterion->weight;

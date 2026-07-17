@@ -39,7 +39,8 @@ class CategoryController extends BaseApiController
             });
         }
 
-        $categories = $query->orderBy('name')
+        $categories = $query->withCount('candidates')
+            ->orderBy('name')
             ->paginate($request->get('per_page', 15));
 
         return $this->paginated($categories, CategoryResource::class);
@@ -103,6 +104,7 @@ class CategoryController extends BaseApiController
     public function getActiveCategories(): JsonResponse
     {
         $categories = Category::where('status', 'active')
+            ->withCount('candidates')
             ->orderBy('name')
             ->get();
 

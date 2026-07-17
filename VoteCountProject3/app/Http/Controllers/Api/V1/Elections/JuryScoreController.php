@@ -29,10 +29,15 @@ class JuryScoreController extends BaseApiController
         $juryUserId = Auth::id();
         $criteriaCount = $election->juryCriteria()->count();
 
-        $candidates = $election->candidates()->approved()->get()->map(function (Candidate $candidate) use ($juryUserId, $criteriaCount) {
-            $scoredCount = JuryScore::where('candidate_id', $candidate->id)
-                ->where('jury_user_id', $juryUserId)
-                ->count();
+        // Un seul GROUP BY plutôt qu'un count() par candidat approuvé.
+        $scoredCounts = JuryScore::where('election_id', $election->id)
+            ->where('jury_user_id', $juryUserId)
+            ->selectRaw('candidate_id, count(*) as total')
+            ->groupBy('candidate_id')
+            ->pluck('total', 'candidate_id');
+
+        $candidates = $election->candidates()->approved()->get()->map(function (Candidate $candidate) use ($scoredCounts, $criteriaCount) {
+            $scoredCount = $scoredCounts[$candidate->id] ?? 0;
 
             return [
                 'uuid' => $candidate->uuid,
@@ -56,9 +61,10 @@ class JuryScoreController extends BaseApiController
 
         $scores = JuryScore::where('candidate_id', $candidate->id)
             ->where('jury_user_id', Auth::id())
-            ->get(['criteria_id', 'score', 'comment'])
+            ->with('criteria')
+            ->get(['id', 'criteria_id', 'score', 'comment'])
             ->map(fn (JuryScore $s) => [
-                'criteria_id' => JuryCriteria::find($s->criteria_id)?->uuid,
+                'criteria_id' => $s->criteria?->uuid,
                 'score' => $s->score,
                 'comment' => $s->comment,
             ]);
@@ -86,9 +92,18 @@ class JuryScoreController extends BaseApiController
         $juryUserId = Auth::id();
         $comment = $request->input('comment');
 
+        // Un seul whereIn plutôt qu'un where()->first() par critère soumis.
+        // Le filtre election_id remplace la vérification $criteria->election_id
+        // faite précédemment après coup : un critère d'une autre élection est
+        // simplement absent de la collection, donc rejeté pareil ci-dessous.
+        $criteriaByUuid = JuryCriteria::where('election_id', $election->id)
+            ->whereIn('uuid', collect($request->input('scores'))->pluck('criteria_id'))
+            ->get()
+            ->keyBy('uuid');
+
         foreach ($request->input('scores') as $entry) {
-            $criteria = JuryCriteria::where('uuid', $entry['criteria_id'])->first();
-            if (! $criteria || $criteria->election_id !== $election->id) {
+            $criteria = $criteriaByUuid->get($entry['criteria_id']);
+            if (! $criteria) {
                 throw ValidationException::withMessages(['scores' => 'Critère invalide pour cette élection.']);
             }
 

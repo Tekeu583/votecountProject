@@ -72,6 +72,7 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithValidation
     protected function validateRow(Collection $row): void
     {
         $fullName = $row['full_name'] ?? $row['nom_complet'] ?? $row['name'] ?? null;
+        $email = $row['email'] ?? null;
 
         if (empty($fullName)) {
             throw new \Exception('Le nom complet est requis');
@@ -80,7 +81,6 @@ class CandidatesImport implements ToCollection, WithHeadingRow, WithValidation
             throw new \Exception('L\'email est obligatoire');
         }
         //uniciter de l'email par candidat par election
-        $email = $row['email'] ?? null;
         if ($email) {
             $exists = Candidate::where('election_id', $this->election->id)
                 ->where('email', $email)

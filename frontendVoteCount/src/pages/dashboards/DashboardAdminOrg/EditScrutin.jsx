@@ -16,6 +16,7 @@ const toDatetimeLocal = (iso) => {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
+
 const EditScrutin = () => {
     const { uuid } = useParams();
     const { org } = useOrg();

@@ -8,7 +8,7 @@ import Step3Votants from '@components/dashboard/Step3Votants';
 import Step4Recapitulatif from '@components/dashboard/Step4Recapitulatif';
 import ScrutinBreadcrumb from '@components/dashboard/ScrutinBreadcrumb';
 import toast from 'react-hot-toast';
-import { electionsApi, candidatesApi, electorsApi, paymentsApi } from '@services/api';
+import { electionsApi, candidatesApi, paymentsApi } from '@services/api';
 import { useAuth } from '@hooks/useAuth';
 import { FadeLoader } from "react-spinners";
 import { useOrg } from "@hooks/useOrg";
@@ -37,6 +37,7 @@ const CreateScrutin = () => {
      * UUID du brouillon — créé dès la validation de Step1.
      * Si l'utilisateur revient sur Step1 et resoumet, on PATCH ce même
      * draft au lieu d'en créer un nouveau (évite les doublons en base).
+     * Persisté en sessionStorage pour survivre à un rechargement de page.
      */
     const [draftUuid, setDraftUuid] = useState(() => {
         return sessionStorage.getItem('wizard_draft_uuid') ?? null;
@@ -174,14 +175,12 @@ const CreateScrutin = () => {
                 if (election && election.status !== 'draft') {
                     console.warn('⚠️ Le brouillon n\'est plus en draft, réinitialisation...');
                     setDraftUuid(null);
-                    sessionStorage.removeItem('wizard_draft_uuid');
                     toast.info('Le brouillon a été réinitialisé.');
                 }
             } catch (error) {
                 // Si l'élection n'existe pas, réinitialiser
                 if (error.response?.status === 404) {
                     setDraftUuid(null);
-                    sessionStorage.removeItem('wizard_draft_uuid');
                 }
             }
         };
@@ -265,7 +264,7 @@ const CreateScrutin = () => {
 
             console.error('[CreateScrutin] Erreur Step1 :', err);
             if (isStaleUuid) {
-                setDraftUuid(null); // déclenche useEffect → vide sessionStorage
+                setDraftUuid(null);
                 toast.error('Nouveau brouillon sera créé au prochain essai.', { icon: FileExclamationPoint });
             }
         } finally {
@@ -287,11 +286,12 @@ const CreateScrutin = () => {
 
     // ── Soumission finale (Step4) ─────────────────────────────────
     /**
-     * À ce stade, le draft existe déjà en base (créé/mis à jour dès Step1).
-     * On se limite donc à :
-     *   1. Ajouter les candidats (si saisie manuelle, pas déjà importés)
-     *   2. Importer les électeurs (élection non publique)
-     *   3. Publier ou laisser en brouillon
+     * À ce stade, le draft existe déjà en base (créé/mis à jour dès Step1),
+     * les candidats sont déjà créés depuis Step2Candidats, et les électeurs
+     * sont déjà créés depuis Step3Votants (import fichier ou saisie manuelle,
+     * au fil de l'eau). Step4 ne sert qu'au récapitulatif et à la décision
+     * finale : publier ou laisser en brouillon — aucune création de contenu
+     * ici (les réimporter/recréer produirait des doublons).
      */
     const submitElection = async (publish = false) => {
         if (!draftUuid) {
@@ -303,33 +303,7 @@ const CreateScrutin = () => {
         setSubmitting(true);
 
         try {
-            const { votants } = formData;
-
-            // Les candidats sont déjà créés en base depuis Step2Candidats
-
-            // ── 1. Importer les électeurs (privé/restreint) ───────
-            if (currentElectionMode !== 'public') {
-                const { uploadedFile, manualVotants, importMethod } = votants;
-
-                if (importMethod === 'grouped' && uploadedFile) {
-                    setSubmitLabel(`Import des électeurs depuis ${uploadedFile.name}...`);
-                    await electorsApi.import(draftUuid, uploadedFile);
-
-                } else if (importMethod === 'manual' && manualVotants.length > 0) {
-                    setSubmitLabel(`Ajout de ${manualVotants.length} électeur(s)...`);
-                    await Promise.all(
-                        manualVotants.map(v =>
-                            electorsApi.create(draftUuid, {
-                                full_name: v.nom,
-                                email: v.email,
-                                phone: v.telephone ?? null,
-                            })
-                        )
-                    );
-                }
-            }
-
-            // ── 2. Publier si demandé ──────────────────────────────
+            // ── Publier si demandé ──────────────────────────────
             if (publish) {
                 setSubmitLabel('Publication de l\'élection...');
                 await electionsApi.publish(draftUuid);

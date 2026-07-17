@@ -1,4 +1,4 @@
-import { Lock, LoaderCircle } from "lucide-react";
+import { Lock, LoaderCircle, EyeOff, Eye } from "lucide-react";
 import TextInput from "@components/ui/TextInput";
 import PropTypes from "prop-types";
 export default function PasswordForm({
@@ -16,13 +16,14 @@ export default function PasswordForm({
                     label="Mot de passe actuel"
                     type="password"
                     placeholder="••••••••"
-                    value={passwordForm.currentPassword}
+                    value={passwordForm.currentPassword }
                     onChange={(e) =>
                         setPasswordForm({
                             ...passwordForm,
                             currentPassword: e.target.value,
                         })
                     }
+                    iconRight={passwordForm.currentPassword ? EyeOff : Eye}
                     iconLeft={Lock}
                 />
 
@@ -32,13 +33,14 @@ export default function PasswordForm({
                     label="Nouveau mot de passe"
                     type="password"
                     placeholder="••••••••"
-                    value={passwordForm.password}
+                    value={passwordForm.password }
                     onChange={(e) =>
                         setPasswordForm({
                             ...passwordForm,
                             password: e.target.value,
                         })
                     }
+                    iconRight={passwordForm.password ? EyeOff : Eye}
                     iconLeft={Lock}
                 />
 
@@ -46,13 +48,14 @@ export default function PasswordForm({
                     label="Confirmation"
                     type="password"
                     placeholder="••••••••"
-                    value={passwordForm.passwordConfirmation}
+                    value={passwordForm.passwordConfirmation }
                     onChange={(e) =>
                         setPasswordForm({
                             ...passwordForm,
                             passwordConfirmation: e.target.value,
                         })
                     }
+                    iconRight={passwordForm.passwordConfirmation ? EyeOff : Eye}
                     iconLeft={Lock}
                 />
             </div>
@@ -81,6 +84,6 @@ PasswordForm.propTypes = {
     },
     setPasswordForm: PropTypes.func.isRequired,
     onSave: PropTypes.func.isRequired,
-    loading:PropTypes.bool
+    loading: PropTypes.bool
 
 }

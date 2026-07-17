@@ -1,5 +1,5 @@
 // components/dashboard/Step3Votants.jsx
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import {
     ArrowLeft, ArrowRight, Upload, Download,
@@ -46,7 +46,8 @@ const Step3Votants = ({ onNext, onPrevious, initialData = {}, electionMode = 'pu
     const [importProgress, setImportProgress] = useState(0);
     const [importedCount, setImportedCount] = useState(0);
     const [importErrors, setImportErrors] = useState([]);
-
+    const [importJobId, setImportJobId] = useState(null);
+    const pollIntervalRef = useRef(null);
 
     // Mode saisie manuelle
     const [manualVotants, setManualVotants] = useState(initialData.manualVotants || []);
@@ -93,7 +94,23 @@ const Step3Votants = ({ onNext, onPrevious, initialData = {}, electionMode = 'pu
         XLSX.writeFile(wb, 'modele_import_votants.xlsx');
     };
 
-    //  Fonction d'import des électeurs
+
+    // Ramène n'importe quelle forme d'erreur (objets ImportError du backend,
+    // objet de validation Laravel {champ: [messages]}, chaînes) à un tableau
+    // de chaînes affichables. Sans ça, un rendu `{err.message || err}` sur un
+    // objet fait planter React ("Objects are not valid as a React child") et
+    // c'est ce qui provoquait l'écran blanc après "import lancé en arrière-plan".
+    const normalizeErrors = (errors) => {
+        if (!errors) return [];
+        if (Array.isArray(errors)) {
+            return errors.map(e => (typeof e === 'string' ? e : e.error_message ?? JSON.stringify(e)));
+        }
+        if (typeof errors === 'object') {
+            return Object.values(errors).flat();
+        }
+        return [String(errors)];
+    };
+
     const importElectors = async (file) => {
         if (!electionUuid) {
             toast.error('Élection introuvable. Veuillez recommencer.');
@@ -105,47 +122,62 @@ const Step3Votants = ({ onNext, onPrevious, initialData = {}, electionMode = 'pu
         setImportErrors([]);
 
         try {
-
-            const formData = new FormData();
-            formData.append('file', file);
-
-            const response = await electorsApi.import(electionUuid, formData, (progress) => {
+            const response = await electorsApi.import(electionUuid, file, true, (progress) => {
                 setImportProgress(progress);
             });
 
-            const data = response.data?.data || response.data;
+            const jobId = response.data?.data?.import_job_id;
+            if (!jobId) throw new Error('Identifiant de job non reçu.');
 
-            if (data?.success_rows > 0) {
-                setImportedCount(data.success_rows);
-                toast.success(`${data.success_rows} électeur(s) importé(s) avec succès !`);
-
-                if (data.failed_rows > 0) {
-                    setImportErrors(data.errors || []);
-                    toast.warning(`${data.failed_rows} ligne(s) en erreur.`);
-                }
-
-                //  Mettre à jour previewCount avec le nombre réel
-                setPreviewCount(data.success_rows);
-
-                return true;
-            } else {
-                toast.error('Aucun électeur importé.');
-                return false;
-            }
+            setImportJobId(jobId);
+            toast.success('Import lancé, traitement en cours...');
+            return true;
         } catch (error) {
             console.error('Import error:', error);
             const message = error.response?.data?.message || 'Erreur lors de l\'import';
             toast.error(message);
-
-            if (error.response?.data?.errors) {
-                setImportErrors(error.response.data.errors);
-            }
-
-            return false;
-        } finally {
+            setImportErrors(normalizeErrors(error.response?.data?.errors));
             setImporting(false);
+            return false;
         }
     };
+
+    // Polling du statut tant que le job est en cours.
+    useEffect(() => {
+        if (!importJobId || !electionUuid) return;
+
+        pollIntervalRef.current = setInterval(async () => {
+            try {
+                const res = await electorsApi.importStatus(electionUuid, importJobId);
+                const data = res.data?.data;
+
+                if (data.status === 'completed' || data.status === 'failed') {
+                    clearInterval(pollIntervalRef.current);
+                    setImporting(false);
+                    setImportJobId(null);
+
+                    if (data.status === 'completed' && data.success_rows > 0) {
+                        setImportedCount(data.success_rows);
+                        setPreviewCount(data.success_rows);
+                        toast.success(`${data.success_rows} électeur(s) importé(s) avec succès !`);
+
+                        if (data.failed_rows > 0) {
+                            setImportErrors(normalizeErrors(data.errors));
+                            toast.error(`${data.failed_rows} ligne(s) en erreur.`);
+                        }
+                    } else {
+                        setImportErrors(normalizeErrors(data.errors));
+                        toast.error('Aucun électeur importé.');
+                    }
+                }
+            } catch {
+                // on retentera au prochain tick
+            }
+        }, 2000);
+
+        return () => clearInterval(pollIntervalRef.current);
+    }, [importJobId, electionUuid]);
+
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -256,16 +288,24 @@ const Step3Votants = ({ onNext, onPrevious, initialData = {}, electionMode = 'pu
     // ── Navigation ───────────────────────────────────────────────
 
     const handleNext = () => {
+        // L'import (fichier) crée les électeurs en base de façon asynchrone :
+        // tant qu'il n'est pas terminé, on ne sait pas encore s'il a réussi.
+        if (importing) {
+            toast.error("Import en cours, veuillez patienter avant de continuer.");
+            return;
+        }
+
         if (isPrivate) {
-            // Validation adaptée : un fichier non-CSV (xlsx) n'a pas de
-            // parsedVotants en aperçu — on considère sa présence (uploadedFile)
-            // comme suffisante, le comptage réel se fera côté serveur.
+            // previewCount n'est renseigné qu'après un import réellement
+            // abouti côté serveur (ou une saisie manuelle) — un fichier
+            // simplement sélectionné (uploadedFile !== null) ne garantit pas
+            // qu'un seul électeur ait été créé en base.
             const hasGroupedData = importMethod === 'grouped'
-                ? (uploadedFile !== null)
+                ? previewCount > 0
                 : manualVotants.length > 0;
 
             if (!hasGroupedData) {
-                toast.error("Une élection privée requiert au moins un électeur dans la liste");
+                toast.error("Une élection privée requiert au moins un électeur créé dans la liste");
                 return;
             }
         }
@@ -322,7 +362,6 @@ const Step3Votants = ({ onNext, onPrevious, initialData = {}, electionMode = 'pu
                         </div>
                     </div>
                 )}
-
                 {isPrivate && (
                     <div className="flex items-start gap-3 p-5 bg-amber-50 border border-amber-200 rounded-[var(--radius-md)]">
                         <Lock size={20} className="text-amber-600 shrink-0 mt-0.5" />
@@ -428,7 +467,7 @@ const Step3Votants = ({ onNext, onPrevious, initialData = {}, electionMode = 'pu
                                                 </p>
                                                 <ul className="text-xs text-red-600 space-y-1 max-h-32 overflow-y-auto">
                                                     {importErrors.map((err, index) => (
-                                                        <li key={index}>• {err.message || err}</li>
+                                                        <li key={index}>• {err}</li>
                                                     ))}
                                                 </ul>
                                             </div>
@@ -586,8 +625,12 @@ const Step3Votants = ({ onNext, onPrevious, initialData = {}, electionMode = 'pu
                 <button onClick={onPrevious} className="flex items-center gap-2 btn-secondary font-medium">
                     <ArrowLeft size={20} /> Précédent
                 </button>
-                <button onClick={handleNext} className="flex items-center gap-2 btn-primary font-medium whitespace-nowrap">
-                    Continuer vers l'étape 4 <ArrowRight size={20} />
+                <button
+                    onClick={handleNext}
+                    disabled={importing}
+                    className="flex items-center gap-2 btn-primary font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {importing ? 'Import en cours...' : "Continuer vers l'étape 4"} <ArrowRight size={20} />
                 </button>
             </div>
         </div>

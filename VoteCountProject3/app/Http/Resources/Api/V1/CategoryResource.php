@@ -19,7 +19,7 @@ class CategoryResource extends JsonResource
             'icon' => $this->icon,
             'color' => $this->color,
             'banner' => $this->banner ? asset('storage/' . $this->banner) : null,
-            'candidates_count' => $this->candidates()->count(),
+            'candidates_count' => $this->candidates_count ?? $this->candidates()->count(),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

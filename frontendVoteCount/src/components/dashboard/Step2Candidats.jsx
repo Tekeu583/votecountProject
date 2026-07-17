@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { Plus, Trash2, ArrowLeft, ArrowRight, User, Camera, Tag, Upload, FileSpreadsheet, X, AlertCircle, Loader2, ServerCog, CheckCircle2 } from 'lucide-react';
 import TextInput from '../ui/TextInput';
@@ -12,7 +12,7 @@ import * as XLSX from 'xlsx';
 // en mémoire navigateur et créerait ensuite un appel API par candidat.
 const SERVER_IMPORT_THRESHOLD = 20;
 
-// ── Parser CSV/Excel → liste de candidats ─────────────────────────
+// ── Parser CSV/Excel → liste de candidats ---─
 // Lecture positionnelle, alignée sur le template généré par downloadTemplate() :
 // full_name | email | phone | bio | manifesto | slogan | position | category
 const parseFile = (file, categories = []) => new Promise((resolve, reject) => {
@@ -99,7 +99,7 @@ const Step2Candidats = ({ onNext, onPrevious, initialData = [], electionUuid = n
         cover_photo: null, coverPhotoPreview: null,
     });
 
-    // ── Chargement des catégories de l'élection ───────────────────
+    // ── Chargement des catégories de l'élection ---───
     useEffect(() => {
         if (!electionUuid) return;
         const fetchCategories = async () => {
@@ -117,7 +117,7 @@ const Step2Candidats = ({ onNext, onPrevious, initialData = [], electionUuid = n
         fetchCategories();
     }, [electionUuid]);
 
-    // ── Créer une catégorie pour cette élection ───────────────────
+    // ── Créer une catégorie pour cette élection ---───
     const handleAddCategory = async () => {
         if (!newCat.name.trim()) { toast.error('Le nom de la catégorie est requis.'); return; }
         setCatSubmitting(true);
@@ -183,6 +183,13 @@ const Step2Candidats = ({ onNext, onPrevious, initialData = [], electionUuid = n
             toast.error('categorie est requise');
             return;
         }
+
+        const email = newCandidat.email.trim().toLowerCase();
+        if (email && candidats.some(c => (c.email ?? '').trim().toLowerCase() === email)) {
+            toast.error('Un candidat avec cet email est déjà dans la liste.');
+            return;
+        }
+
         const categoryName = newCandidat.category_id
             ? (categories.find(c => String(c.id) === String(newCandidat.category_id))?.name ?? null)
             : null;
@@ -229,12 +236,9 @@ const Step2Candidats = ({ onNext, onPrevious, initialData = [], electionUuid = n
             return;
         }
 
-        // Seuls les candidats pas encore créés en base sont à envoyer —
-        // ceux déjà importés via le serveur (alreadyOnServer) sont ignorés.
         const toCreate = candidats.filter(c => !c.alreadyOnServer);
 
         if (toCreate.length === 0) {
-            // Tous déjà créés (ex: import serveur uniquement) — on passe direct.
             onNext({ candidats });
             return;
         }
@@ -304,7 +308,43 @@ const Step2Candidats = ({ onNext, onPrevious, initialData = [], electionUuid = n
         return cat?.name ?? null;
     };
 
-    // ── Import CSV/Excel ──────────────────────────────────────────
+    // Ajoute des candidats importés en écartant les doublons d'email (déjà
+    // dans la liste, ou en double dans le fichier lui-même) : sans ce
+    // filtre, un re-import du même fichier — ou un fichier contenant deux
+    // fois la même adresse — envoie deux fois le même email au serveur, qui
+    // n'en accepte qu'un seul ("email déjà pris") au moment de créer.
+    const addImportedCandidats = (rows) => {
+        const existingEmails = new Set(
+            candidats.map(c => (c.email ?? '').trim().toLowerCase()).filter(Boolean)
+        );
+        const seenInFile = new Set();
+        const deduped = [];
+        let duplicateCount = 0;
+
+        rows.forEach(c => {
+            const email = (c.email ?? '').trim().toLowerCase();
+            if (email && (existingEmails.has(email) || seenInFile.has(email))) {
+                duplicateCount++;
+                return;
+            }
+            if (email) seenInFile.add(email);
+            deduped.push(c);
+        });
+
+        setCandidats(prev => [...prev, ...deduped]);
+
+        if (duplicateCount > 0) {
+            toast.error(
+                `${duplicateCount} candidat(s) ignoré(s) car déjà présents dans la liste (email en double).`,
+                { duration: 6000 }
+            );
+        }
+        if (deduped.length > 0) {
+            toast.success(`${deduped.length} candidat(s) importé(s) avec succès`);
+        }
+    };
+
+    // ── Import CSV/Excel ---──
     const handleImportFile = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -330,9 +370,6 @@ const Step2Candidats = ({ onNext, onPrevious, initialData = [], electionUuid = n
                 return;
             }
 
-            // Fichier volumineux : on suggère l'import serveur (asynchrone,
-            // job de suivi) plutôt que d'enchaîner des dizaines d'appels
-            // candidatesApi.create() un par un depuis CreateScrutin.
             if (parsed.length > SERVER_IMPORT_THRESHOLD) {
                 setPendingServerFile(file);
                 setShowServerSuggestion(true);
@@ -353,8 +390,7 @@ const Step2Candidats = ({ onNext, onPrevious, initialData = [], electionUuid = n
             }
 
             const valid = parsed.filter(c => c.full_name);
-            setCandidats(prev => [...prev, ...valid]);
-            toast.success(`${valid.length} candidat(s) importé(s) avec succès`);
+            addImportedCandidats(valid);
 
         } catch (err) {
             toast.error(err.message ?? 'Erreur lors de l\'import');
@@ -375,8 +411,7 @@ const Step2Candidats = ({ onNext, onPrevious, initialData = [], electionUuid = n
         try {
             const parsed = await parseFile(file, categories);
             const valid = parsed.filter(c => c.full_name);
-            setCandidats(prev => [...prev, ...valid]);
-            toast.success(`${valid.length} candidat(s) importé(s) avec succès`);
+            addImportedCandidats(valid);
         } catch (err) {
             toast.error(err.message ?? 'Erreur lors de l\'import');
         } finally {
@@ -416,43 +451,8 @@ const Step2Candidats = ({ onNext, onPrevious, initialData = [], electionUuid = n
         }
     };
 
-    // Polling du statut tant que le job est en cours.
-    useEffect(() => {
-        if (!serverImportJobId || !electionUuid) return;
-        if (serverImportStatus !== 'processing') return;
-
-        pollIntervalRef.current = setInterval(async () => {
-            try {
-                const res = await candidatesApi.importStatus(electionUuid, serverImportJobId);
-                const data = res.data?.data;
-
-                if (data.status === 'completed' || data.status === 'failed') {
-                    clearInterval(pollIntervalRef.current);
-                    setServerImportStatus(data.status);
-                    setServerImportResult(data);
-
-                    if (data.status === 'completed') {
-                        toast.success(`${data.success_rows}/${data.total_rows} candidat(s) importé(s) avec succès.`);
-                        // Les candidats sont déjà créés en base côté serveur.
-                        // On rafraîchit la liste affichée depuis l'API plutôt
-                        // que de les rejouer localement.
-                        refreshCandidatsFromServer();
-                    } else {
-                        toast.error("L'import a échoué. Consultez le détail ci-dessous.");
-                    }
-                } else {
-                    setServerImportResult(data);
-                }
-            } catch {
-                // on retentera au prochain tick
-            }
-        }, 2000);
-
-        return () => clearInterval(pollIntervalRef.current);
-    }, [serverImportJobId, serverImportStatus, electionUuid]);
-
     // Recharge la liste des candidats déjà créés en base après un import serveur réussi.
-    const refreshCandidatsFromServer = async () => {
+    const refreshCandidatsFromServer = useCallback(async () => {
         if (!electionUuid) return;
         try {
             const res = await candidatesApi.getAll(electionUuid);
@@ -474,16 +474,52 @@ const Step2Candidats = ({ onNext, onPrevious, initialData = [], electionUuid = n
         } catch {
             // non bloquant — l'admin verra les candidats au prochain chargement de Step4
         }
-    };
+    }, [electionUuid]);
+
+    // Polling du statut tant que le job est en cours.
+    useEffect(() => {
+        if (!serverImportJobId || !electionUuid) return;
+        if (serverImportStatus !== 'processing') return;
+
+        pollIntervalRef.current = setInterval(async () => {
+            try {
+                const res = await candidatesApi.importStatus(electionUuid, serverImportJobId);
+                const data = res.data?.data;
+
+                if (data.status === 'completed' || data.status === 'failed') {
+                    clearInterval(pollIntervalRef.current);
+                    setServerImportStatus(data.status);
+                    setServerImportResult(data);
+
+                    if (data.status === 'completed') {
+                        toast.success(`${data.success_rows}/${data.total_rows} candidat(s) importé(s) avec succès.`);
+                        refreshCandidatsFromServer();
+                    } else {
+                        toast.error("L'import a échoué. Consultez le détail ci-dessous.");
+                    }
+                } else {
+                    setServerImportResult(data);
+                }
+            } catch {
+                // on retentera au prochain tick
+            }
+        }, 2000);
+
+        return () => clearInterval(pollIntervalRef.current);
+    }, [serverImportJobId, serverImportStatus, electionUuid, refreshCandidatsFromServer]);
+
+    // Recharge les candidats déjà créés en base à l'arrivée sur l'étape.
+    // Nécessaire quand on reprend un brouillon (ex. après rechargement de
+    // page) : l'état local repart de zéro alors que des candidats existent
+    // déjà côté serveur, sinon on tente de les recréer → "email déjà pris".
+    useEffect(() => {
+        refreshCandidatsFromServer();
+    }, [refreshCandidatsFromServer]);
 
     const downloadTemplate = () => {
-        // En-têtes en snake_case anglais : ce sont EXACTEMENT les clés que
-        // CandidatesImport.php lit après normalisation par WithHeadingRow.
-        // Toute autre formulation (ex: "Prénom"/"Nom" séparés, ou accents)
-        // ne correspondrait à aucun alias reconnu côté serveur.
         const headers = ['full_name', 'email', 'phone', 'bio', 'manifesto', 'slogan', 'position', 'category'];
         const example = [
-            'Jean Dupont', 'jean.dupont@email.com', '+237612345678',
+            'user marie', 'user.marie@email.com', '+237612345678',
             'Candidat engagé pour le changement...', 'Mon programme détaillé...',
             'Pour un avenir meilleur', '1', '',
         ];
@@ -513,7 +549,7 @@ const Step2Candidats = ({ onNext, onPrevious, initialData = [], electionUuid = n
                 </div>
             </div>
 
-            {/* ── Sous-étape catégories (optionnelle) ───────────── */}
+            {/* ── Sous-étape catégories (optionnelle) ---─ */}
             {hasCategories && (
                 <div className="bg-white rounded-[var(--radius-md)] shadow-sm p-6 mb-8">
                     {/* Barre de navigation sous-étapes */}
@@ -646,7 +682,7 @@ const Step2Candidats = ({ onNext, onPrevious, initialData = [], electionUuid = n
             {(subStep === 'candidats' || !hasCategories) && (
                 <>
 
-                    {/* ── Sélecteur de mode ─────────────────────────── */}
+                    {/* ── Sélecteur de mode --------------------*/}
                     <div className="flex gap-3 mb-8">
                         <button
                             type="button"
@@ -670,7 +706,7 @@ const Step2Candidats = ({ onNext, onPrevious, initialData = [], electionUuid = n
                         </button>
                     </div>
 
-                    {/* ── Zone d'import ─────────────────────────────── */}
+                    {/* ── Zone d'import -----------------------*/}
                     {importMode === 'import' && (
                         <div className="bg-white rounded-[var(--radius-md)] shadow-sm p-8 mb-8">
                             <h2 className="text-xl font-semibold mb-2">Import de candidats</h2>

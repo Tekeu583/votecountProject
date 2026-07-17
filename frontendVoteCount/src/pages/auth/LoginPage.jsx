@@ -112,8 +112,7 @@ export default function LoginPage() {
       if (!err.response) {
         setGlobalError('Impossible de joindre le serveur. Vérifiez votre connexion.');
       } else if (status === 401) {
-        setGlobalError(err || 'Email ou mot de passe incorrect.');
-        console.log(err);
+        setGlobalError(message || 'Email ou mot de passe incorrect.');
       } else if (status === 403 && message.toLowerCase().includes('vérifié')) {
         // Email non vérifié → rediriger vers la page de vérification
         navigate('/auth/verify-email', {
