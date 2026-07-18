@@ -33,35 +33,39 @@ class CreateCandidateRequest extends FormRequest
             'position' => ['nullable', 'integer', 'min:0'],
             'category_id' => [
                 'nullable',
-                function ($attribute, $value, $fail) {
+                function ($attribute, $value, $fail) use ($election) {
                     if (empty($value)) {
                         return;
                     }
 
+                    // Une catégorie appartient toujours à une élection précise —
+                    // vérifier qu'elle existe ET qu'elle appartient à CETTE élection,
+                    // pas seulement qu'elle existe quelque part sur la plateforme.
+
                     // Si c'est un UUID → vérifier qu'il existe et récupérer l'ID
                     if (Str::isUuid($value)) {
-                        $category = Category::where('uuid', $value)->first();
+                        $category = Category::where('uuid', $value)->where('election_id', $election->id)->first();
                         if (!$category) {
-                            $fail('La catégorie sélectionnée n\'existe pas.');
+                            $fail('La catégorie sélectionnée n\'existe pas pour ce scrutin.');
                         }
                         return;
                     }
 
                     // Si c'est un ID numérique → vérifier qu'il existe
                     if (is_numeric($value)) {
-                        $exists = Category::where('id', (int)$value)->exists();
+                        $exists = Category::where('id', (int) $value)->where('election_id', $election->id)->exists();
                         if (!$exists) {
-                            $fail('La catégorie sélectionnée n\'existe pas.');
+                            $fail('La catégorie sélectionnée n\'existe pas pour ce scrutin.');
                         }
                         return;
                     }
 
                     // Si c'est un nom → chercher par nom ou slug
-                    $exists = Category::where('name', $value)
-                        ->orWhere('slug', Str::slug($value))
+                    $exists = Category::where('election_id', $election->id)
+                        ->where(fn ($q) => $q->where('name', $value)->orWhere('slug', Str::slug($value)))
                         ->exists();
                     if (!$exists) {
-                        $fail('La catégorie sélectionnée n\'existe pas.');
+                        $fail('La catégorie sélectionnée n\'existe pas pour ce scrutin.');
                     }
                 },
             ],
@@ -91,20 +95,23 @@ class CreateCandidateRequest extends FormRequest
             return null;
         }
 
+        $election = $this->route('election');
+
         // 1. UUID → trouver la catégorie et retourner son ID (BIGINT)
         if (Str::isUuid($input)) {
-            $category = Category::where('uuid', $input)->first();
+            $category = Category::where('uuid', $input)->where('election_id', $election->id)->first();
             return $category?->id; // ✅ Retourne un BIGINT
         }
 
-        // 2. ID numérique → retourner directement (BIGINT)
+        // 2. ID numérique → vérifier qu'il appartient à cette élection avant de le retourner
         if (is_numeric($input)) {
-            return (int) $input; // ✅ Retourne un BIGINT
+            $category = Category::where('id', (int) $input)->where('election_id', $election->id)->first();
+            return $category?->id; // ✅ Retourne un BIGINT
         }
 
-        // 3. Nom → chercher par nom ou slug
-        $category = Category::where('name', $input)
-            ->orWhere('slug', Str::slug($input))
+        // 3. Nom → chercher par nom ou slug, dans cette élection
+        $category = Category::where('election_id', $election->id)
+            ->where(fn ($q) => $q->where('name', $input)->orWhere('slug', Str::slug($input)))
             ->first();
 
         return $category?->id; // ✅ Retourne un BIGINT

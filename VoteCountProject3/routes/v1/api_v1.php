@@ -218,9 +218,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/staff/{user}', [ElectionStaffController::class, 'destroy']);
     });
 
-    // Mes candidatures (utilisateur connecté, toutes élections) — doit être
-    // déclarée avant le groupe candidates/{candidate} pour que 'mine' ne
-    // soit pas interprété comme un uuid de candidat par le route binding.
+
     Route::get('candidates/mine', [CandidateController::class, 'mine']);
 
     // Gestion des documents des candidats
@@ -283,9 +281,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Catégories d'une élection (has_categories = true)
 
     Route::post('elections/{election}/create-categories', [ElectionCategoryController::class, 'store']);
+    Route::put('elections/{election}/categories/{category}', [ElectionCategoryController::class, 'update']);
     Route::delete('elections/{election}/categories/{category}', [ElectionCategoryController::class, 'destroy']);
-    // CRUD complet des catégories
-    Route::apiResource('categories', CategoryController::class);
+    // Vue d'ensemble des catégories d'une organisation (toutes élections confondues)
+    Route::get('categories', [CategoryController::class, 'index']);
 
     // Télécharger le template d'import
     Route::get('/candidates/import-template', [CandidateController::class, 'downloadTemplate']);

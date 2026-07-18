@@ -13,16 +13,7 @@ import toast from 'react-hot-toast';
 import NotificationModal from "./NotificationModal";
 import TextInput from "@components/ui/TextInput";
 import { notificationsApi } from "@services/api";
-
-// Empêche un appel API à chaque frappe : attend 400ms d'inactivité.
-function useDebounce(value, delay = 400) {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(timer);
-  }, [value, delay]);
-  return debounced;
-}
+import { useDebounce } from '@hooks/useDebounce';
 
 const EMPTY_PAGE = {
   data: [],
@@ -32,6 +23,7 @@ const EMPTY_PAGE = {
 export default function NotificationsPage() {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search);
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [selected, setSelected] = useState(null);
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -47,6 +39,7 @@ export default function NotificationsPage() {
         page,
         per_page: itemsPerPage,
         ...(debouncedSearch ? { search: debouncedSearch } : {}),
+        ...(unreadOnly ? { unread_only: true } : {}),
       });
       setNotifications({
         data: res.data?.data ?? [],
@@ -58,13 +51,14 @@ export default function NotificationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch]);
+  }, [page, debouncedSearch, unreadOnly]);
 
   useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
-  useEffect(() => { setPage(1); }, [debouncedSearch]);
+  useEffect(() => { setPage(1); }, [debouncedSearch, unreadOnly]);
 
   const handleResetFilters = () => {
     setSearch("");
+    setUnreadOnly(false);
     setPage(1);
   };
 
@@ -140,6 +134,14 @@ export default function NotificationsPage() {
             placeholder="Rechercher (titre, message)..."
           />
         </div>
+        <label className="flex items-center gap-2 text-sm text-[var(--color-dark)] whitespace-nowrap">
+          <input
+            type="checkbox"
+            checked={unreadOnly}
+            onChange={(e) => setUnreadOnly(e.target.checked)}
+          />
+          Non lues uniquement
+        </label>
         <div className="w-full md:w-auto">
           <button
             onClick={handleResetFilters}

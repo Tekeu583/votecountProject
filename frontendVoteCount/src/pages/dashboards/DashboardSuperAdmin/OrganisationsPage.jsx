@@ -8,6 +8,7 @@ import { organizationsApi } from '@services/api';
 import StatCard from "@/components/dashboard/StatCard";
 import { FadeLoader } from 'react-spinners';
 import { useConfirm } from '@hooks/useConfirm';
+import { useDebounce } from '@hooks/useDebounce';
 
 const statusStyle = (status) => {
   const map = {
@@ -29,16 +30,6 @@ const statusLabel = (status) => {
   return map[status] ?? status;
 };
 
-// ── Debounce hook ─────────────────────────────────────────────────
-// Empêche un appel API à chaque frappe : attend 400ms d'inactivité.
-function useDebounce(value, delay = 400) {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(timer);
-  }, [value, delay]);
-  return debounced;
-}
 
 // ── Shape initiale de la réponse paginée ──────────────────────────
 const EMPTY_PAGE = {

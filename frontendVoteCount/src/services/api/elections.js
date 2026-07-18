@@ -46,6 +46,8 @@ export const electionsApi = {
     getCategories: (uuid) => api.get(`${V1}/elections/${uuid}/categories`),
     // Créer une catégorie
     createCategory: (uuid, data) => api.post(`${V1}/elections/${uuid}/create-categories`, data),
+    // Modifier une catégorie (nom, description, couleur...)
+    updateCategory: (uuid, catUuid, data) => api.put(`${V1}/elections/${uuid}/categories/${catUuid}`, data),
     // Supprimer une catégorie
     deleteCategory: (uuid, catUuid) => api.delete(`${V1}/elections/${uuid}/categories/${catUuid}`),
 

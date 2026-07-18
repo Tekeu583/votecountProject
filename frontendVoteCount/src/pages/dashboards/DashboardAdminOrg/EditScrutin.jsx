@@ -6,6 +6,7 @@ import { FadeLoader } from 'react-spinners';
 import { AlertCircle, ImagePlus } from 'lucide-react';
 import TextInput from '@components/ui/TextInput';
 import JuryCriteriaManager from '@components/dashboard/JuryCriteriaManager';
+import CategoryManager from './CategoryManager';
 import { electionsApi } from '@services/api';
 import { useOrg } from '@hooks/useOrg';
 
@@ -339,6 +340,12 @@ const EditScrutin = () => {
                 {election.vote_type === 'weighted' && (
                     <div className="mt-6">
                         <JuryCriteriaManager electionUuid={uuid} />
+                    </div>
+                )}
+
+                {election.has_categories && (
+                    <div className="mt-6">
+                        <CategoryManager electionUuid={uuid} />
                     </div>
                 )}
             </div>

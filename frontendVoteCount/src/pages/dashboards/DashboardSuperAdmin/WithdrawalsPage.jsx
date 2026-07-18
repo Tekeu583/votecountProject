@@ -6,6 +6,7 @@ import TextInput from '@components/ui/TextInput';
 import { withdrawalsApi } from '@services/api';
 import StatCard from '@components/dashboard/StatCard';
 import { FadeLoader } from 'react-spinners';
+import { useDebounce } from '@hooks/useDebounce';
 
 const STATUS_STYLES = {
     pending: 'bg-yellow-100 text-yellow-700',
@@ -19,15 +20,6 @@ const EMPTY_PAGE = {
     data: [],
     meta: { current_page: 1, last_page: 1, per_page: 15, total: 0, from: 0, to: 0 },
 };
-
-function useDebounce(value, delay = 400) {
-    const [debounced, setDebounced] = useState(value);
-    useEffect(() => {
-        const timer = setTimeout(() => setDebounced(value), delay);
-        return () => clearTimeout(timer);
-    }, [value, delay]);
-    return debounced;
-}
 
 export default function WithdrawalsPage() {
     const [selected, setSelected] = useState(null);
@@ -46,6 +38,7 @@ export default function WithdrawalsPage() {
             const response = await withdrawalsApi.getAll({
                 page,
                 status: statusFilter || undefined,
+                search: debouncedSearch || undefined,
                 per_page: 15,
             });
             const data = response.data?.data ?? [];
@@ -57,7 +50,7 @@ export default function WithdrawalsPage() {
         } finally {
             setLoading(false);
         }
-    }, [page, statusFilter]);
+    }, [page, statusFilter, debouncedSearch]);
 
     useEffect(() => {
         fetchWithdrawals();
@@ -68,9 +61,6 @@ export default function WithdrawalsPage() {
     }, [debouncedSearch, statusFilter]);
 
     const { data: rows, meta } = withdrawals;
-    const filteredRows = debouncedSearch
-        ? rows.filter((w) => (w.organization?.name ?? '').toLowerCase().includes(debouncedSearch.toLowerCase()))
-        : rows;
 
     const pendingCount = rows.filter((w) => w.status === 'pending').length;
     const approvedCount = rows.filter((w) => w.status === 'approved').length;
@@ -91,7 +81,7 @@ export default function WithdrawalsPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <StatCard
-                    title="En attente"
+                    title="En attente (page)"
                     value={pendingCount}
                     icon={Clock}
                     className="text-yellow-600"
@@ -100,7 +90,7 @@ export default function WithdrawalsPage() {
                     delay={100}
                 />
                 <StatCard
-                    title="Approuvées (à payer)"
+                    title="Approuvées à payer (page)"
                     value={approvedCount}
                     icon={CheckCircle}
                     className="text-blue-600"
@@ -156,7 +146,7 @@ export default function WithdrawalsPage() {
                             </div>
                         );
                     }
-                    if (filteredRows.length === 0) {
+                    if (rows.length === 0) {
                         return (
                             <div className="flex flex-col items-center justify-center p-12 text-center">
                                 <Wallet size={48} className="text-gray-300 mb-4" />
@@ -177,7 +167,7 @@ export default function WithdrawalsPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredRows.map((w) => (
+                                {rows.map((w) => (
                                     <tr key={w.uuid} className="hover:bg-[var(--color-gray-light)] border-t border-t-[var(--color-gray-light)]">
                                         <td className="p-2 font-medium">{w.organization?.name ?? '—'}</td>
                                         <td className="p-2">{Number(w.amount).toLocaleString('fr-FR')} {w.currency}</td>

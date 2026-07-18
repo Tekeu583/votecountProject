@@ -57,6 +57,7 @@ const Revenus = () => {
   const [transactions, setTransactions] = useState([]);
   const [meta, setMeta] = useState({ total: 0, last_page: 1 });
   const [currentPage, setCurrentPage] = useState(1);
+  const [transactionStatusFilter, setTransactionStatusFilter] = useState('all');
   const [chartData, setChartData] = useState([]);
 
   const [balance, setBalance] = useState(null);
@@ -99,6 +100,7 @@ const Revenus = () => {
         organization_uuid: org.uuid,
         page: currentPage,
         per_page: 10,
+        status: transactionStatusFilter !== 'all' ? transactionStatusFilter : undefined,
       });
       setTransactions(res.data?.data ?? []);
       setMeta(res.data?.meta ?? { total: 0, last_page: 1 });
@@ -107,7 +109,7 @@ const Revenus = () => {
     } finally {
       setLoading(false);
     }
-  }, [org?.uuid, currentPage]);
+  }, [org?.uuid, currentPage, transactionStatusFilter]);
 
   const loadBalance = useCallback(async () => {
     if (!org?.uuid) return;
@@ -136,6 +138,7 @@ const Revenus = () => {
 
   useEffect(() => { loadStatsAndChart(); }, [loadStatsAndChart]);
   useEffect(() => { loadTransactions(); }, [loadTransactions]);
+  useEffect(() => { setCurrentPage(1); }, [transactionStatusFilter]);
   useEffect(() => { loadBalance(); }, [loadBalance]);
   useEffect(() => { loadWithdrawals(); }, [loadWithdrawals]);
 
@@ -346,6 +349,19 @@ const Revenus = () => {
       <div className="bg-[var(--color-white)] rounded-[var(--radius-md)] shadow-[var(--shadow-md)] border border-gray-100 overflow-hidden">
         <div className="px-8 py-5 flex items-center justify-between bg-gray-50">
           <h3 className="font-semibold text-gray-800">Transactions</h3>
+          <select
+            value={transactionStatusFilter}
+            onChange={(e) => setTransactionStatusFilter(e.target.value)}
+            className="border border-[var(--color-gray-light)] bg-[var(--color-white)] rounded-[var(--radius-md)] px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-all"
+          >
+            <option value="all">Tous les statuts</option>
+            <option value="pending">En attente</option>
+            <option value="processing">En traitement</option>
+            <option value="completed">Complété</option>
+            <option value="failed">Échoué</option>
+            <option value="refunded">Remboursé</option>
+            <option value="cancelled">Annulé</option>
+          </select>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px]">

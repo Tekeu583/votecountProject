@@ -134,6 +134,11 @@
         <div class="message">
             Vous avez été inscrit(e) comme électeur(rice) pour l'élection :
             <strongs style="color: #1e40af;" >{{ $election->title }}</strongs>
+            <br>
+            <strong>Date de début :</strong> {{ $dateStart }}<br>
+            <strong>Date de fin :</strong> {{ $dateEnd }}<br>
+            <br>
+            Pour accéder au vote, veuillez utiliser le code d'accès personnel ci-dessous. Ce code est
         </div>
 
         <!-- Code Box -->

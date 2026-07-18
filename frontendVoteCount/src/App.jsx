@@ -64,13 +64,13 @@ import SettingsPage from './pages/dashboards/DashboardSuperAdmin/SettingsPage';
 import Users from './pages/dashboards/DashboardSuperAdmin/Users';
 import ElectionsPage from './pages/dashboards/DashboardSuperAdmin/ElectionsPage';
 import CorbeillePage from './pages/dashboards/DashboardSuperAdmin/CorbeillePage';
-import CategoriePage from './pages/dashboards/DashboardSuperAdmin/CategoriePage';
 import TelescopePage from './pages/dashboards/DashboardSuperAdmin/TelescopePage';
 
 // ── Admin Organisation ────────────────────────────────────────────
 import DashboardHome from './pages/dashboards/DashboardAdminOrg/DashboardHome';
 import AuditLogs from './pages/dashboards/DashboardAdminOrg/AuditLogs';
 import Candidats from './pages/dashboards/DashboardAdminOrg/Candidats';
+import Categories from './pages/dashboards/DashboardAdminOrg/Categories';
 import Parametres from './pages/dashboards/DashboardAdminOrg/Parametres';
 import SubscriptionPage from './pages/dashboards/DashboardAdminOrg/SubscriptionPage';
 import Electeurs from './pages/dashboards/DashboardAdminOrg/Electeurs';
@@ -201,7 +201,6 @@ function AppRoutes() {
                     <Route path="admins" element={<AdminsPage />} />
                     <Route path="users" element={<Users />} />
                     <Route path="elections" element={<ElectionsPage />} />
-                    <Route path="categories" element={<CategoriePage />} />
                     <Route path="notifications" element={<NotificationsPage />} />
                     <Route path="security" element={<SecurityPage />} />
                     <Route path="corbeille" element={<CorbeillePage />} />
@@ -229,6 +228,7 @@ function AppRoutes() {
                     <Route index element={<DashboardHome />} />
                     <Route path="audit-logs" element={<AuditLogs />} />
                     <Route path="candidats" element={<Candidats />} />
+                    <Route path="categories" element={<Categories />} />
                     <Route path="electeurs" element={<Electeurs />} />
                     <Route path="jurys" element={<Jurys />} />
                     <Route path="equipe" element={<Equipe />} />

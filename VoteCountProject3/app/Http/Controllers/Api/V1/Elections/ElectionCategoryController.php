@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use App\Http\Requests\Api\V1\Categories\CreateCategoryRequest;
+use App\Http\Requests\Api\V1\Categories\UpdateCategoryRequest;
 
 /**
  * Gestion des catégories spécifiques à une élection.
@@ -21,6 +22,7 @@ use App\Http\Requests\Api\V1\Categories\CreateCategoryRequest;
  * Routes :
  *   GET    /elections/{election}/categories         → lister
  *   POST   /elections/{election}/categories         → créer
+ *   PUT    /elections/{election}/categories/{cat}  → renommer/modifier
  *   DELETE /elections/{election}/categories/{cat}  → supprimer
  */
 class ElectionCategoryController extends BaseApiController
@@ -80,6 +82,29 @@ class ElectionCategoryController extends BaseApiController
         ]);
 
         return $this->created(new CategoryResource($category), 'Catégorie créée.');
+    }
+
+    /**
+     * PUT /elections/{election}/categories/{category}
+     * Modifie une catégorie de l'élection (nom, description, couleur...).
+     */
+    public function update(UpdateCategoryRequest $request, Election $election, Category $category): JsonResponse
+    {
+        $this->authorize('update', $election);
+
+        if ($category->election_id !== $election->id) {
+            return $this->error('Cette catégorie n\'appartient pas à cette élection.', null, 403);
+        }
+
+        $data = $request->validated();
+
+        if ($request->hasFile('banner')) {
+            $data['banner'] = $this->storeBanner($request);
+        }
+
+        $category->update($data);
+
+        return $this->success(new CategoryResource($category), 'Catégorie mise à jour.');
     }
 
     /**

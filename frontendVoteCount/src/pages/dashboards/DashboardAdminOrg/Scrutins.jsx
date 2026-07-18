@@ -13,6 +13,7 @@ import { electionsApi } from '@services/api';
 import { useOrg } from '@hooks/useOrg';
 import { FadeLoader } from "react-spinners";
 import TextInput from '@components/ui/TextInput';
+import { useDebounce } from '@hooks/useDebounce';
 // ── Constantes ────────────────────────────────────────────────────
 
 const ITEMS_PER_PAGE = 10;
@@ -213,9 +214,8 @@ export default function Scrutins() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
 
-  const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
-  // const search = useDebounce(searchInput, 400);
+  const search = useDebounce(searchInput, 400);
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -294,16 +294,11 @@ export default function Scrutins() {
   };
 
   // ── Recherche ─────────────────────────────────────────────────
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    setSearch(searchInput);
-    setCurrentPage(1);
-  };
+  // Recherche live débouncée (comme Candidats.jsx/Electeurs.jsx/AuditLogs.jsx) :
+  // l'appel API part 400ms après la dernière frappe, pas de bouton "Rechercher".
 
   const handleReset = () => {
     setSearchInput('');
-    setSearch('');
     setStatusFilter('all');
     setCurrentPage(1);
   };
@@ -357,20 +352,17 @@ export default function Scrutins() {
         </div>
 
         {/* Recherche */}
-        <form onSubmit={handleSearch} className="flex gap-2">
+        <div className="flex gap-2">
           <div className="relative flex-1 max-w-sm">
             <TextInput
               type="text"
               value={searchInput}
-              onChange={e => setSearchInput(e.target.value)}
+              onChange={e => { setSearchInput(e.target.value); setCurrentPage(1); }}
               iconLeft={Search}
               placeholder="Rechercher un scrutin..."
               className="w-full "
             />
           </div>
-          <button type="submit" className="btn-primary px-4 text-sm">
-            Rechercher
-          </button>
           {(search || statusFilter !== 'all') && (
             <button
               type="button"
@@ -381,7 +373,7 @@ export default function Scrutins() {
               <RefreshCw size={16} />
             </button>
           )}
-        </form>
+        </div>
       </div>
 
       {/* Tableau */}

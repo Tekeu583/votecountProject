@@ -13,16 +13,7 @@ import PlanModal from './PlanModal';
 import StatCard from '@components/dashboard/StatCard';
 import TextInput from '@components/ui/TextInput';
 import { plansApi, paymentsApi } from '@services/api';
-
-// Empêche un appel API à chaque frappe : attend 400ms d'inactivité.
-function useDebounce(value, delay = 400) {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(timer);
-  }, [value, delay]);
-  return debounced;
-}
+import { useDebounce } from '@hooks/useDebounce';
 
 const EMPTY_PAGE = {
   data: [],

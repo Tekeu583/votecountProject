@@ -6,10 +6,12 @@ import {
     Clock,
     Calendar,
     CheckCircle,
+    Search,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { candidatesApi } from "@services/api";
 import { FadeLoader } from "react-spinners";
+import TextInput from "@components/ui/TextInput";
 
 const statusLabel = (status) => {
     if (status === 'ongoing') return 'EN COURS';
@@ -17,9 +19,21 @@ const statusLabel = (status) => {
     return 'À VENIR';
 };
 
+const STATUS_FILTERS = [
+    { value: 'all', label: 'Tous' },
+    { value: 'EN COURS', label: 'En cours' },
+    { value: 'À VENIR', label: 'À venir' },
+    { value: 'TERMINÉ', label: 'Terminés' },
+];
+
 export default function Scrutins() {
     const [candidacies, setCandidacies] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    // Liste déjà entièrement chargée en mémoire (scrutins d'un seul candidat) :
+    // filtrage client instantané, pas besoin de useDebounce ici.
+    const [search, setSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
 
     useEffect(() => {
         const fetchData = async () => {
@@ -36,7 +50,7 @@ export default function Scrutins() {
         fetchData();
     }, []);
 
-    const scrutins = useMemo(() => candidacies
+    const allScrutins = useMemo(() => candidacies
         .filter((c) => c.election)
         .map((c) => ({
             id: c.election.uuid,
@@ -45,12 +59,17 @@ export default function Scrutins() {
             rank: c.rank_label ?? '-',
         })), [candidacies]);
 
+    const scrutins = useMemo(() => allScrutins
+        .filter((s) => statusFilter === 'all' || s.status === statusFilter)
+        .filter((s) => !search.trim() || s.name.toLowerCase().includes(search.trim().toLowerCase())),
+        [allScrutins, statusFilter, search]);
+
     const stats = useMemo(() => ({
-        total: scrutins.length,
-        ongoing: scrutins.filter((s) => s.status === 'EN COURS').length,
-        upcoming: scrutins.filter((s) => s.status === 'À VENIR').length,
-        finished: scrutins.filter((s) => s.status === 'TERMINÉ').length,
-    }), [scrutins]);
+        total: allScrutins.length,
+        ongoing: allScrutins.filter((s) => s.status === 'EN COURS').length,
+        upcoming: allScrutins.filter((s) => s.status === 'À VENIR').length,
+        finished: allScrutins.filter((s) => s.status === 'TERMINÉ').length,
+    }), [allScrutins]);
 
     if (loading) {
         return (
@@ -76,6 +95,33 @@ export default function Scrutins() {
                 <StatCard title="En cours" value={stats.ongoing} icon={Clock} color="bg-blue-100 text-blue-600" delay={100} />
                 <StatCard title="À venir" value={stats.upcoming} icon={Calendar} color="bg-orange-100 text-orange-600" delay={200} />
                 <StatCard title="Terminés" value={stats.finished} icon={CheckCircle} color="bg-green-100 text-green-600" delay={400} />
+            </div>
+
+            {/* Recherche + filtre statut */}
+            <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1 max-w-sm">
+                    <TextInput
+                        type="text"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        iconLeft={Search}
+                        placeholder="Rechercher un scrutin..."
+                    />
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    {STATUS_FILTERS.map((f) => (
+                        <button
+                            key={f.value}
+                            onClick={() => setStatusFilter(f.value)}
+                            className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all
+                                ${statusFilter === f.value
+                                    ? 'bg-[var(--color-primary)] text-white'
+                                    : 'bg-gray-100 text-gray-900 hover:bg-gray-200'}`}
+                        >
+                            {f.label}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             {/* Table */}

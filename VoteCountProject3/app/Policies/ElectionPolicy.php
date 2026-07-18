@@ -35,7 +35,12 @@ class ElectionPolicy
 
     public function update(User $user, Election $election): bool
     {
-        // Only creator or organization owner can update
+        // Uniquement le créateur, le propriétaire de l'organisation, ou un
+        // membre du staff de CETTE élection précise (pivot election_user).
+        // Pas de repli sur une permission Spatie globale ('edit elections') :
+        // organization_owner la possède pour toutes les organisations, ce
+        // qui autorisait n'importe quel propriétaire à modifier les
+        // élections d'organisations tierces.
         if ($user->id === $election->created_by) {
             return true;
         }
@@ -51,12 +56,12 @@ class ElectionPolicy
             return true;
         }
 
-        return $user->can('edit elections');
+        return false;
     }
 
     public function delete(User $user, Election $election): bool
     {
-        // Only creator or organization owner can delete
+        // Même raison que update() : pas de repli sur permission globale.
         if ($user->id === $election->created_by) {
             return true;
         }
@@ -66,7 +71,7 @@ class ElectionPolicy
             return true;
         }
 
-        return $user->can('delete elections');
+        return false;
     }
 
     public function publish(User $user, Election $election): bool
@@ -101,11 +106,8 @@ class ElectionPolicy
 
         $pivot = $user->elections()->where('election_id', $election->id)->first()?->pivot;
 
-        if ($pivot && in_array($pivot->role_slug, ['creator', 'admin', 'manager'])) {
-            return true;
-        }
-
-        return $user->can('manage candidates');
+        // Pas de repli sur permission globale : voir commentaire sur update().
+        return $pivot && in_array($pivot->role_slug, ['creator', 'admin', 'manager']);
     }
 
     public function manageElectors(User $user, Election $election): bool
@@ -116,11 +118,7 @@ class ElectionPolicy
 
         $pivot = $user->elections()->where('election_id', $election->id)->first()?->pivot;
 
-        if ($pivot && in_array($pivot->role_slug, ['creator', 'admin', 'manager'])) {
-            return true;
-        }
-
-        return $user->can('manage electors');
+        return $pivot && in_array($pivot->role_slug, ['creator', 'admin', 'manager']);
     }
 
     public function scoreCandidates(User $user, Election $election): bool
@@ -131,11 +129,7 @@ class ElectionPolicy
 
         $pivot = $user->elections()->where('election_id', $election->id)->first()?->pivot;
 
-        if ($pivot && in_array($pivot->role_slug, ['creator', 'admin', 'manager', 'jury'])) {
-            return true;
-        }
-
-        return $user->can('manage candidates');
+        return $pivot && in_array($pivot->role_slug, ['creator', 'admin', 'manager', 'jury']);
     }
 
     public function viewResults(?User $user, Election $election): bool

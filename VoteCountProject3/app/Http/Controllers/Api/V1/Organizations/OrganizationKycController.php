@@ -72,8 +72,17 @@ class OrganizationKycController extends BaseApiController
     {
         $this->authorize('review organization kyc');
 
-        $organizations = Organization::where('kyc_status', OrganizationKycStatus::PENDING->value)
-            ->orderBy('kyc_submitted_at')
+        $query = Organization::where('kyc_status', OrganizationKycStatus::PENDING->value);
+
+        if ($request->filled('search')) {
+            $search = $request->query('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'ilike', "%{$search}%")
+                    ->orWhere('kyc_legal_representative_name', 'ilike', "%{$search}%");
+            });
+        }
+
+        $organizations = $query->orderBy('kyc_submitted_at')
             ->paginate($request->integer('per_page', 15));
 
         return $this->paginated($organizations, OrganizationKycResource::class);

@@ -14,16 +14,7 @@ import AdminModal from './AdminModal';
 import TextInput from '@components/ui/TextInput';
 import StatCard from '@components/dashboard/StatCard';
 import { usersApi } from '@services/api';
-
-// Empêche un appel API à chaque frappe : attend 400ms d'inactivité.
-function useDebounce(value, delay = 400) {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(timer);
-  }, [value, delay]);
-  return debounced;
-}
+import { useDebounce } from '@hooks/useDebounce';
 
 const ADMIN_ROLES = ['super_admin', 'admin'];
 
@@ -57,6 +48,7 @@ export default function AdminsPage() {
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search);
+  const [roleFilter, setRoleFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, total: 0 });
   const itemsPerPage = 10;
@@ -65,7 +57,7 @@ export default function AdminsPage() {
     setLoading(true);
     try {
       const res = await usersApi.getAll(page, itemsPerPage, {
-        role: ADMIN_ROLES,
+        role: roleFilter === 'all' ? ADMIN_ROLES : roleFilter,
         ...(debouncedSearch ? { search: debouncedSearch } : {}),
       });
       const payload = res.data;
@@ -79,10 +71,10 @@ export default function AdminsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch]);
+  }, [page, debouncedSearch, roleFilter]);
 
   useEffect(() => { fetchAdmins(); }, [fetchAdmins]);
-  useEffect(() => { setPage(1); }, [debouncedSearch]);
+  useEffect(() => { setPage(1); }, [debouncedSearch, roleFilter]);
 
   const stats = [
     { label: 'Total Admins', value: meta.total },
@@ -135,8 +127,17 @@ export default function AdminsPage() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Rechercher..." />
         </div>
+        <select
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value)}
+          className="input w-full lg:w-auto"
+        >
+          <option value="all">Tous les rôles</option>
+          <option value="super_admin">Super Admin</option>
+          <option value="admin">Admin</option>
+        </select>
         <button
-          onClick={() => setSearch('')}
+          onClick={() => { setSearch(''); setRoleFilter('all'); }}
           className="flex items-center gap-2 btn-secondary font-medium transition-colors  whitespace-nowrap"
         >
           <RefreshCw size={16} />Réinitialiser

@@ -15,6 +15,7 @@ import TextInput from '@components/ui/TextInput';
 import { useExport } from '@/hooks/useExport';
 import { formatAuditLogs } from '@/utils/export/formatData';
 import { auditApi, organizationsApi } from '@services/api';
+import { useDebounce } from '@hooks/useDebounce';
 
 const ACTION_OPTIONS = [
   { value: 'created', label: 'Créé' },
@@ -38,15 +39,6 @@ const MetadataCell = ({ log }) => (
   </button>
 );
 
-// Empêche un appel API à chaque frappe : attend 400ms d'inactivité.
-function useDebounce(value, delay = 400) {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(timer);
-  }, [value, delay]);
-  return debounced;
-}
 
 const EMPTY_PAGE = {
   data: [],

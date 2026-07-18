@@ -10,16 +10,7 @@ import toast from 'react-hot-toast';
 import SecurityModal from "./SecurityModal";
 import TextInput from "@components/ui/TextInput";
 import { securityApi } from "@services/api";
-
-// Empêche un appel API à chaque frappe : attend 400ms d'inactivité.
-function useDebounce(value, delay = 400) {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(timer);
-  }, [value, delay]);
-  return debounced;
-}
+import { useDebounce } from '@hooks/useDebounce';
 
 const badgeColor = (severity) => {
   switch (severity) {
@@ -49,6 +40,7 @@ export default function SecurityPage() {
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search);
+  const [severityFilter, setSeverityFilter] = useState('all');
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState({ total: 0, unresolved: 0, critical: 0, high: 0 });
@@ -60,6 +52,7 @@ export default function SecurityPage() {
         per_page: 10,
         resolved: false,
         ...(debouncedSearch ? { search: debouncedSearch } : {}),
+        ...(severityFilter !== 'all' ? { severity: severityFilter } : {}),
       });
       setAlerts(res.data?.data ?? []);
     } catch (error) {
@@ -67,7 +60,7 @@ export default function SecurityPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch]);
+  }, [debouncedSearch, severityFilter]);
 
   const fetchStats = useCallback(() => {
     securityApi.getStats()
@@ -103,6 +96,17 @@ export default function SecurityPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          <select
+            value={severityFilter}
+            onChange={(e) => setSeverityFilter(e.target.value)}
+            className="input"
+          >
+            <option value="all">Toutes sévérités</option>
+            <option value="critical">Critique</option>
+            <option value="high">Élevée</option>
+            <option value="medium">Moyenne</option>
+            <option value="low">Faible</option>
+          </select>
         </div>
       </div>
 

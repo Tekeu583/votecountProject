@@ -58,6 +58,8 @@ class ResultService
             }
 
             foreach ($results as $index => $resultData) {
+                $rank = $index + 1;
+
                 Result::create([
                     'election_id' => $election->id,
                     'candidate_id' => $resultData['candidate_id'],
@@ -67,15 +69,17 @@ class ResultService
                     'ranking_points' => $resultData['ranking_points'],
                     'final_score' => $resultData['final_score'],
                     'percentage' => $resultData['percentage'],
-                    'rank' => $index + 1,
+                    'rank' => $rank,
                     'calculated_at' => now(),
                 ]);
-            }
 
-            // Update candidate final scores
-            foreach ($results as $resultData) {
+                // Recopié sur Candidate (comme final_score) — c'est cette colonne
+                // que CandidateResource::rank_label lit pour l'affichage côté
+                // candidat (dashboard "Mes scrutins") ; sans ça elle restait
+                // toujours null même une fois les résultats calculés.
                 Candidate::where('id', $resultData['candidate_id'])->update([
                     'final_score' => $resultData['final_score'],
+                    'rank' => $rank,
                 ]);
             }
 

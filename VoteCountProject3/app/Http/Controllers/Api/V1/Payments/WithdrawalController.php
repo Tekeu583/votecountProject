@@ -62,6 +62,14 @@ class WithdrawalController extends BaseApiController
             $query->where('status', $request->query('status'));
         }
 
+        if ($request->filled('search')) {
+            $search = $request->query('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('phone_number', 'ilike', "%{$search}%")
+                    ->orWhereHas('organization', fn ($orgQuery) => $orgQuery->where('name', 'ilike', "%{$search}%"));
+            });
+        }
+
         $withdrawals = $query->with(['organization', 'requester', 'reviewer'])
             ->orderByDesc('created_at')
             ->paginate($request->integer('per_page', 15));

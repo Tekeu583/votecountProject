@@ -1,9 +1,11 @@
-import { ShieldCheck, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ShieldCheck, Eye, ChevronLeft, ChevronRight, Search, RefreshCw } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import KycReviewModal from './KycReviewModal';
+import TextInput from '@components/ui/TextInput';
 import { kycApi } from '@services/api';
 import { FadeLoader } from 'react-spinners';
+import { useDebounce } from '@hooks/useDebounce';
 
 const EMPTY_PAGE = {
     data: [],
@@ -15,12 +17,18 @@ export default function OrganizationKycReviewPage() {
     const [openModal, setOpenModal] = useState(false);
     const [loading, setLoading] = useState(false);
     const [page, setPage] = useState(1);
+    const [search, setSearch] = useState('');
+    const debouncedSearch = useDebounce(search, 400);
     const [organizations, setOrganizations] = useState(EMPTY_PAGE);
 
     const fetchPending = useCallback(async () => {
         setLoading(true);
         try {
-            const response = await kycApi.getPending({ page, per_page: 15 });
+            const response = await kycApi.getPending({
+                page,
+                per_page: 15,
+                search: debouncedSearch || undefined,
+            });
             const data = response.data?.data ?? [];
             const meta = response.data?.meta ?? EMPTY_PAGE.meta;
             setOrganizations({ data, meta });
@@ -30,11 +38,15 @@ export default function OrganizationKycReviewPage() {
         } finally {
             setLoading(false);
         }
-    }, [page]);
+    }, [page, debouncedSearch]);
 
     useEffect(() => {
         fetchPending();
     }, [fetchPending]);
+
+    useEffect(() => {
+        setPage(1);
+    }, [debouncedSearch]);
 
     const { data: orgs, meta } = organizations;
 
@@ -49,6 +61,26 @@ export default function OrganizationKycReviewPage() {
                 <h1 className="text-xl lg:text-2xl font-bold text-[var(--text-primary)]">
                     Vérifications KYC en attente
                 </h1>
+            </div>
+
+            <div className="flex flex-col lg:flex-row gap-4 lg:items-center lg:justify-between">
+                <div className="relative w-full lg:w-2/3">
+                    <TextInput
+                        type="text"
+                        placeholder="Rechercher une organisation, un représentant légal..."
+                        iconLeft={Search}
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                    />
+                </div>
+                {search && (
+                    <button
+                        onClick={() => setSearch('')}
+                        className="flex items-center gap-2 btn-secondary font-medium transition-colors whitespace-nowrap"
+                    >
+                        <RefreshCw size={16} />Réinitialiser
+                    </button>
+                )}
             </div>
 
             <div className="bg-[var(--color-background-white)] rounded-[var(--radius-sm)] shadow-[var(--shadow-md)] overflow-x-auto">

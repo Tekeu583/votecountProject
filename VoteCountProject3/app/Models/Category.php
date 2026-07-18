@@ -59,22 +59,17 @@ class Category extends Model
     }
 
     /**
-     * Catégories disponibles pour une élection donnée :
-     *   - les catégories spécifiques à cette élection (election_id = $electionId)
-     *   - les catégories globales (election_id IS NULL), réutilisables partout
+     * Catégories actives disponibles pour une élection donnée. Une catégorie
+     * appartient toujours à une élection précise (election_id obligatoire) —
+     * pas de catégorie globale réutilisable entre élections.
      *
      * Utilisé par ElectionCategoryController::index() pour peupler le
      * sélecteur de catégorie à l'étape 2 du wizard de création de scrutin.
-     *
-     * @param Builder $query
-     * @param int     $electionId
      */
     public function scopeAvailableFor(Builder $query, int $electionId): Builder
     {
         return $query
             ->where('status', 'active')
-            ->where(function (Builder $q) use ($electionId) {
-                $q->where('election_id', $electionId);
-            });
+            ->where('election_id', $electionId);
     }
 }

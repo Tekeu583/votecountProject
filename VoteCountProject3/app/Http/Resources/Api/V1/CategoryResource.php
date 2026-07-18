@@ -20,6 +20,10 @@ class CategoryResource extends JsonResource
             'color' => $this->color,
             'banner' => $this->banner ? asset('storage/' . $this->banner) : null,
             'candidates_count' => $this->candidates_count ?? $this->candidates()->count(),
+            'election' => $this->whenLoaded('election', fn () => $this->election ? [
+                'uuid' => $this->election->uuid,
+                'title' => $this->election->title,
+            ] : null),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

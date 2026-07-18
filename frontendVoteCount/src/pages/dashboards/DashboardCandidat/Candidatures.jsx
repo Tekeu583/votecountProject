@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
 import CandidatureTable from "@components/dashboard/CandidatureTable";
-import { FileText } from "lucide-react";
+import { FileText, Search } from "lucide-react";
 import toast from "react-hot-toast";
 import { candidatesApi } from "@services/api";
 import { FadeLoader } from "react-spinners";
+import TextInput from "@components/ui/TextInput";
 
 const STATUS_LABELS = {
     pending: 'EN ATTENTE',
@@ -11,9 +12,22 @@ const STATUS_LABELS = {
     rejected: 'REJETÉ',
 };
 
+const STATUS_FILTERS = [
+    { value: 'all', label: 'Tous' },
+    { value: 'EN ATTENTE', label: 'En attente' },
+    { value: 'ACCEPTÉ', label: 'Acceptées' },
+    { value: 'REJETÉ', label: 'Rejetées' },
+];
+
 export default function Candidatures() {
     const [candidacies, setCandidacies] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    // Liste déjà entièrement chargée en mémoire (une poignée de candidatures
+    // par candidat) : filtrage client instantané, pas besoin de useDebounce
+    // (utile uniquement quand la recherche déclenche un appel API).
+    const [search, setSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
 
     useEffect(() => {
         const fetchData = async () => {
@@ -37,7 +51,10 @@ export default function Candidatures() {
             election: c.election.title,
             electionUuid: c.election.uuid,
             status: STATUS_LABELS[c.status] ?? 'EN ATTENTE',
-        })), [candidacies]);
+        }))
+        .filter((c) => statusFilter === 'all' || c.status === statusFilter)
+        .filter((c) => !search.trim() || c.election.toLowerCase().includes(search.trim().toLowerCase())),
+        [candidacies, statusFilter, search]);
 
     if (loading) {
         return (
@@ -59,6 +76,33 @@ export default function Candidatures() {
                     <p className="text-gray-500 text-sm">
                         Suivi de vos demandes de participation aux scrutins
                     </p>
+                </div>
+            </div>
+
+            {/* Recherche + filtre statut */}
+            <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1 max-w-sm">
+                    <TextInput
+                        type="text"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        iconLeft={Search}
+                        placeholder="Rechercher une élection..."
+                    />
+                </div>
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    {STATUS_FILTERS.map((f) => (
+                        <button
+                            key={f.value}
+                            onClick={() => setStatusFilter(f.value)}
+                            className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all
+                                ${statusFilter === f.value
+                                    ? 'bg-[var(--color-primary)] text-white'
+                                    : 'bg-gray-100 text-gray-900 hover:bg-gray-200'}`}
+                        >
+                            {f.label}
+                        </button>
+                    ))}
                 </div>
             </div>
 

@@ -32,7 +32,7 @@ const PER_PAGE = 15;
 export default function Candidats() {
   const { org } = useOrg();
 
-  // ── États ────────────────────────────────────────────────────
+  // -- États ----------------------------------------------------
   const [candidates, setCandidates] = useState([]);
   const [elections, setElections] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -71,11 +71,7 @@ export default function Candidats() {
     fetch();
   }, [org?.uuid]);
 
-  // Un seul appel serveur, paginé et filtré côté backend (organizationsApi.
-  // getCandidates) — plutôt qu'un fan-out d'une requête par élection (jusqu'à
-  // 20 requêtes HTTP en parallèle rien que pour afficher 15 lignes), qui
-  // rendait la page lente à charger dès que l'organisation avait plusieurs
-  // élections.
+
   const loadCandidates = useCallback(async (p = 1) => {
     if (!org?.uuid) return;
 
@@ -111,7 +107,7 @@ export default function Candidats() {
     loadCandidates(page);
   }, [page, loadCandidates, electionFilter]);
 
-  // ── Actions ──────────────────────────────────────────────────
+  // -- Actions --------------------------------------------------
   const handleApprove = async (candidate) => {
     try {
       await candidatesApi.approve(candidate.uuid);
@@ -174,7 +170,7 @@ export default function Candidats() {
     setPage(1);
   };
 
-  // ── Rendu ─────────────────────────────────────────────────────
+  // -- Rendu ----------------------------------------------------─
   return (
     <div className="p-2 space-y-6">
 

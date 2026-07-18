@@ -10,24 +10,15 @@ import TextInput from '@components/ui/TextInput';
 import StatCard from '@components/dashboard/StatCard';
 import { electionsApi, analyticsApi } from '@services/api';
 import { FadeLoader } from 'react-spinners';
+import { useDebounce } from '@hooks/useDebounce';
 
-// ── Debounce hook ─────────────────────────────────────────────────
-function useDebounce(value, delay = 400) {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(t);
-  }, [value, delay]);
-  return debounced;
-}
-
-// ── Shape initiale ────────────────────────────────────────────────
+// -- Shape initiale ------------------------------------------------
 const EMPTY_PAGE = {
   data: [],
   meta: { current_page: 1, last_page: 1, per_page: 15, total: 0, from: 0, to: 0 },
 };
 
-// ── Mapping status → libellé + couleur ───────────────────────────
+// -- Mapping status → libellé + couleur --------------------------─
 const STATUS_CONFIG = {
   draft: { label: 'Brouillon', color: 'text-gray-400' },
   pending: { label: 'En attente', color: 'text-yellow-500' },
@@ -47,25 +38,25 @@ export default function ElectionsPage() {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ── State paginé ────────────────────────────────────────────
+  // -- State paginé --------------------------------------------
   const [elections, setElections] = useState(EMPTY_PAGE);
 
-  // ── Filtres séparés ──────────────────────────────────────────
+  // -- Filtres séparés ------------------------------------------
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [page, setPage] = useState(1);
 
-  // ── Stats séparées ───────────────────────────────────────────
+  // -- Stats séparées ------------------------------------------─
   const [stats, setStats] = useState({
     total: '—', ongoing: '—', published: '—',
     closed: '—', total_votes: '—', new_this_month: '—',draft: '-',
   });
 
-  // ── Debounce recherche ───────────────────────────────────────
+  // -- Debounce recherche --------------------------------------─
   const debouncedSearch = useDebounce(search, 500);
 
-  // ── Fetch liste ──────────────────────────────────────────────
+  // -- Fetch liste ----------------------------------------------
   const fetchElections = useCallback(async () => {
     setLoading(true);
     try {
@@ -108,12 +99,12 @@ export default function ElectionsPage() {
   }, []);
 
 
-  // ── Re-fetch liste quand filtres / page changent ─────────────
+  // -- Re-fetch liste quand filtres / page changent ------------─
   useEffect(() => {
     fetchElections();
   }, [fetchElections]);
 
-  // ── Remettre à la page 1 quand filtres changent ──────────────
+  // -- Remettre à la page 1 quand filtres changent --------------
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch, statusFilter, dateFilter]);
