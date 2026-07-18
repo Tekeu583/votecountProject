@@ -23,7 +23,7 @@ export const useUsers = (options = {}) => {
     const [totalUsers, setTotalUsers] = useState(0);
     const [filters, setFilters]       = useState({ search: '', role: '', status: '' });
 
-    // ── FETCH USERS ───────────────────────────────────────────────
+    // -- FETCH USERS ----------------------------------------------─
 
     const fetchUsers = useCallback(async (page = 1) => {
         setLoading(true);
@@ -61,7 +61,7 @@ export const useUsers = (options = {}) => {
         }
     }, []);
 
-    // ── EFFETS ────────────────────────────────────────────────────
+    // -- EFFETS ----------------------------------------------------
 
     // Fetch initial
     useEffect(() => {
@@ -80,7 +80,7 @@ export const useUsers = (options = {}) => {
     // Note : fetchUsers est stable (useCallback sur [limit, filters]),
     // mais on surveille filters directement pour clarté.
 
-    // ── ACTIONS ───────────────────────────────────────────────────
+    // -- ACTIONS --------------------------------------------------─
 
     const refresh = useCallback(async () => {
         await Promise.all([fetchUsers(1), fetchStats()]);

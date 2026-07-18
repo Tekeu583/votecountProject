@@ -11,7 +11,7 @@ import { getCsrfCookie, verifyEmailOtp, verifyEmailLink, resendVerification } fr
 import { useAuth } from '@hooks/useAuth';
 import { getRoleDefaultRoute, getPrimaryRole } from '@utils/roleRoutes';
 
-// ─── Composant : case OTP unique ──────────────────────────────────
+// - Composant : case OTP unique --------------------
 const OtpBox = ({ value, onChange, onKeyDown, onPaste, inputRef, index, hasError }) => (
     <input
         ref={inputRef}
@@ -39,7 +39,7 @@ const OtpBox = ({ value, onChange, onKeyDown, onPaste, inputRef, index, hasError
     />
 );
 
-// ─── Composant : timer de renvoi ──────────────────────────────────
+// - Composant : timer de renvoi --------------------
 const ResendTimer = ({ onResend, loading }) => {
     const [seconds, setSeconds] = useState(60);
     const canResend = seconds <= 0;
@@ -75,12 +75,12 @@ const ResendTimer = ({ onResend, loading }) => {
     );
 };
 
-// ─── Page principale ──────────────────────────────────────────────
+// - Page principale -------------------------------
 export default function VerifyEmailPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const [searchParams] = useSearchParams();
-    const { setAuth, refreshUser } = useAuth();
+    const { user, authenticated, setAuth } = useAuth();
 
     // Email transmis depuis RegisterPage via navigate state
     const email = location.state?.email ?? searchParams.get('email') ?? '';
@@ -98,18 +98,68 @@ export default function VerifyEmailPage() {
 
     const inputRefs = useRef([]);
 
-    // ── Vérification automatique via lien magique ─────────────────
+    // --- Soumission OTP ----------------------------
+    const submitOtp = useCallback(async (code) => {
+        if (!email) {
+            setError('Email manquant. Retournez à la page de connexion.');
+            return;
+        }
+
+        setLoading(true);
+        setError('');
+
+        try {
+            const res = await verifyEmailOtp({ email, otp: code });
+            const verifiedUser = res.data?.data?.user;
+            if (verifiedUser) {
+                setAuth(verifiedUser);
+            }
+        } catch (err) {
+
+            const data = err.response?.data;
+            setError(data?.message ?? 'Code incorrect ou expiré.');
+            // Vider les cases en cas d'erreur
+            setDigits(Array(6).fill(''));
+            inputRefs.current[0]?.focus();
+        } finally {
+            setLoading(false);
+        }
+    }, [email, setAuth]);
+
+    // --- Renvoi du code ----------------------------
+    const handleResend = useCallback(async () => {
+        if (!email) return;
+        setResendLoading(true);
+        setError('');
+
+        try {
+            await getCsrfCookie();
+            await resendVerification({ email });
+            setSuccess('Un nouveau code vous a été envoyé.');
+            setDigits(Array(6).fill(''));
+            inputRefs.current[0]?.focus();
+            setTimeout(() => setSuccess(''), 4000);
+        } catch (err) {
+            setError(
+                err.response?.data?.message
+                ?? 'Impossible de renvoyer le code. Réessayez.'
+            );
+        } finally {
+            setResendLoading(false);
+        }
+    }, [email]);
+
+    // --- Vérification automatique via lien magique ----------
     useEffect(() => {
         if (!tokenFromUrl || !email) return;
 
         const verifyLink = async () => {
             try {
                 const res = await verifyEmailLink(tokenFromUrl, email);
-                const user = res.data?.data?.user;
-                if (user) {
-                    setAuth(user);
-                    refreshUser?.();
-                    navigate(getRoleDefaultRoute(getPrimaryRole(user)), { replace: true });
+                const verifiedUser = res.data?.data?.user;
+                if (verifiedUser) {
+                    // Même raison que dans submitOtp : pas de navigate() ici.
+                    setAuth(verifiedUser);
                 }
             } catch (err) {
                 setLinkVerifying(false);
@@ -121,7 +171,14 @@ export default function VerifyEmailPage() {
         };
 
         verifyLink();
-    }, [tokenFromUrl, email, navigate, setAuth, refreshUser]);
+    }, [tokenFromUrl, email, setAuth]);
+
+    // ── Redirection une fois l'authentification confirmée par le contexte ──
+    useEffect(() => {
+        if (authenticated && user) {
+            navigate(getRoleDefaultRoute(getPrimaryRole(user)), { replace: true });
+        }
+    }, [authenticated, user, navigate]);
 
     useEffect(() => {
         // location.state?.fromLogin indique qu'on vient du LoginPage
@@ -129,16 +186,16 @@ export default function VerifyEmailPage() {
         if (!tokenFromUrl && email && location.state?.resend) {
             handleResend();
         }
-    }, []);
+    }, [email, tokenFromUrl, location.state?.resend, handleResend]);
 
-    // ── Focus premier champ au montage ────────────────────────────
+    // --- Focus premier champ au montage ---------------
     useEffect(() => {
         if (!linkVerifying) {
             inputRefs.current[0]?.focus();
         }
     }, [linkVerifying]);
 
-    // ── Gestion des cases OTP ─────────────────────────────────────
+    // --- Gestion des cases OTP ---------------------
     const handleChange = useCallback((e, index) => {
         const val = e.target.value.replace(/\D/g, '');
         if (!val) return;
@@ -157,7 +214,7 @@ export default function VerifyEmailPage() {
         if (newDigits.every(d => d !== '') && index === 5) {
             submitOtp(newDigits.join(''));
         }
-    }, [digits]);
+    }, [digits, submitOtp]);
 
     const handleKeyDown = useCallback((e, index) => {
         if (e.key === 'Backspace') {
@@ -198,38 +255,9 @@ export default function VerifyEmailPage() {
         if (pasted.length === 6) {
             submitOtp(pasted);
         }
-    }, []);
+    }, [submitOtp]);
 
-    // ── Soumission OTP ────────────────────────────────────────────
-    const submitOtp = useCallback(async (code) => {
-        if (!email) {
-            setError('Email manquant. Retournez à la page de connexion.');
-            return;
-        }
-
-        setLoading(true);
-        setError('');
-
-        try {
-            const res = await verifyEmailOtp({ email, otp: code });
-            const user = res.data?.data?.user;
-            if (user) {
-                setAuth(user);
-                refreshUser?.();
-                navigate(getRoleDefaultRoute(getPrimaryRole(user)), { replace: true });
-            }
-        } catch (err) {
-            console.log(err);
-            const data = err.response?.data;
-            setError(data?.message ?? 'Code incorrect ou expiré.');
-            // Vider les cases en cas d'erreur
-            setDigits(Array(6).fill(''));
-            inputRefs.current[0]?.focus();
-        } finally {
-            setLoading(false);
-        }
-    }, [email, navigate, setAuth, refreshUser]);
-
+    // --- Soumission --------------------------------
     const handleSubmit = (e) => {
         e.preventDefault();
         const code = digits.join('');
@@ -240,30 +268,7 @@ export default function VerifyEmailPage() {
         submitOtp(code);
     };
 
-    // ── Renvoi du code ────────────────────────────────────────────
-    const handleResend = async () => {
-        if (!email) return;
-        setResendLoading(true);
-        setError('');
-
-        try {
-            await getCsrfCookie();
-            await resendVerification({ email });
-            setSuccess('Un nouveau code vous a été envoyé.');
-            setDigits(Array(6).fill(''));
-            inputRefs.current[0]?.focus();
-            setTimeout(() => setSuccess(''), 4000);
-        } catch (err) {
-            setError(
-                err.response?.data?.message
-                ?? 'Impossible de renvoyer le code. Réessayez.'
-            );
-        } finally {
-            setResendLoading(false);
-        }
-    };
-
-    // ── Écran de vérification du lien magique ─────────────────────
+    // --- Écran de vérification du lien magique -----------─
     if (linkVerifying) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-[var(--color-background-white)]">

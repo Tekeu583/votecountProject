@@ -147,7 +147,10 @@ Puis lancez les migrations :
 php artisan migrate
 ```
 
-Si des seeders existent pour des données de démonstration :
+⚠️ **Étape obligatoire** (pas une donnée de démo optionnelle) — ce seeder crée
+les rôles et permissions (RBAC) sans lesquels **aucune** action protégée ne
+fonctionne (inscription, création d'organisation, etc. échoueront avec une
+erreur 403 "This action is unauthorized") :
 
 ```bash
 php artisan db:seed
@@ -300,6 +303,16 @@ Une migration n'a probablement pas été exécutée :
 
 ```bash
 php artisan migrate
+```
+
+### Erreur 403 "This action is unauthorized" (inscription, création d'organisation...)
+
+Les rôles/permissions n'ont pas été seedés (étape considérée à tort comme
+optionnelle). Corrige aussi les comptes déjà créés avec un rôle vide, sans
+perte de données :
+
+```bash
+php artisan db:seed
 ```
 
 ---

@@ -8,7 +8,7 @@ import Logo from '@components/Logo';
 import { useAuth } from '@hooks/useAuth';
 import MiniFooter from '@components/layouts/Minifooter';
 
-// ─── Logo ───
+// ---- Logo ----
 const VoteCountLogo = () => (
   <div className="w-10 h-10 rounded-lg flex items-center justify-center">
     <Logo size="sm" />
@@ -48,7 +48,7 @@ export default function LoginPage() {
     }
   }, [authErrors]);
 
-  // ─── Handle change ─────────────────
+  // ---- Handle change ----------------------
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
 
@@ -68,7 +68,7 @@ export default function LoginPage() {
     if (globalError) setGlobalError('');
   };
 
-  // ─── Validation ─────────────────
+  // ---- Validation ----------------------
   const validate = () => {
     const e = {};
 
@@ -85,7 +85,7 @@ export default function LoginPage() {
     return e;
   };
 
-  // ─── Submit ─────────────────
+  // ---- Submit ----------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
 

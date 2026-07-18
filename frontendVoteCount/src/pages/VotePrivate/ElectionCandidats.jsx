@@ -91,7 +91,7 @@ const ElectionCandidats = () => {
             <div className="relative rounded overflow-hidden mb-16 shadow-2xl">
                 <Link
                     to="/"
-                    className="inline-flex items-center gap-2 absolute text-[var(--color-dark)] hover:text-blue-600 cursor-pointer top-4 left-4 z-20"
+                    className="inline-flex items-center gap-2 absolute text-[var(--color-primary)] hover:text-blue-600 cursor-pointer top-4 left-4 z-20"
                 >
                     <ChevronLeft size={16} /> Retour
                 </Link>

@@ -10,12 +10,12 @@ import OrgContext from '@context/OrgContext';
  * (c'est-à-dire dans toutes les pages sous /org/:orgUuid/*).
  *
  * @returns {{
- *   org: object|null,        — Organisation active complète
- *   orgs: object[],          — Toutes les organisations de l'user
- *   orgLoading: boolean,     — true pendant le chargement
- *   orgError: string|null,   — Message d'erreur si échec
- *   switchOrg: function,     — (uuid) => void, change l'URL
- *   refreshOrgs: function,   — () => Promise, recharge la liste
+ *   org: object|null,        -- Organisation active complète
+ *   orgs: object[],          -- Toutes les organisations de l'user
+ *   orgLoading: boolean,     -- true pendant le chargement
+ *   orgError: string|null,   -- Message d'erreur si échec
+ *   switchOrg: function,     -- (uuid) => void, change l'URL
+ *   refreshOrgs: function,   -- () => Promise, recharge la liste
  * }}
  *
  * @throws Si appelé en dehors de OrgProvider

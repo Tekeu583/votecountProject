@@ -4,7 +4,7 @@
  * Fournit l'état d'authentification et les actions à l'arborescence React.
  *
  * RESPONSABILITÉS :
- * ─────────────────────────────────────────────────────────────────
+ * -------------------------------------------
  * • Hydrater l'état utilisateur au montage (session existante ?)
  * • Exposer login / register / logout / refreshUser / checkAuth
  * • Gérer les codes d'erreur HTTP spécifiques à Sanctum (401, 419)
@@ -20,9 +20,9 @@ import {
     getUser,
 } from "@services/api";
 
-// ─────────────────────────────────────────────────────────────────
+// -------------------------------------------
 // STATE INITIAL
-// ─────────────────────────────────────────────────────────────────
+// -------------------------------------------
 
 const INITIAL_STATE = {
     user: null,
@@ -31,9 +31,9 @@ const INITIAL_STATE = {
     errors: {},
 };
 
-// ─────────────────────────────────────────────────────────────────
+// -------------------------------------------
 // PROVIDER
-// ─────────────────────────────────────────────────────────────────
+// -------------------------------------------
 
 export default function AuthProvider({ children }) {
     const [user, setUser] = useState(INITIAL_STATE.user);
@@ -59,10 +59,10 @@ export default function AuthProvider({ children }) {
     const extractUser = (responseData) =>
         responseData?.data?.user ?? responseData?.data ?? responseData;
 
-    // ── VÉRIFICATION DE SESSION AU MONTAGE ───────────────────────
+    // -- VÉRIFICATION DE SESSION AU MONTAGE -----------------------
 
     /**
-     * checkAuth
+     * checkAuth-
      *
      * Appelle GET /api/v1/user pour savoir si une session valide existe.
      *
@@ -97,14 +97,14 @@ export default function AuthProvider({ children }) {
      * refreshUser
      *
      * Re-fetch l'utilisateur courant (ex : après une mise à jour de profil).
-     * Ne modifie pas loading — l'UI reste visible pendant la mise à jour.
+     * 
      */
     const refreshUser = useCallback(async () => {
         try {
             const response = await getUser();
             const user = response.data?.data?.user ?? response.data?.data ?? response.data;
             setAuth(user);
-            console.log(user);
+
         } catch (error) {
             if (error.response?.status === 401) {
                 clearAuth();
@@ -112,7 +112,7 @@ export default function AuthProvider({ children }) {
         }
     }, [setAuth, clearAuth]);
 
-    // ── ACTIONS D'AUTHENTIFICATION ────────────────────────────────
+    // -- ACTIONS D'AUTHENTIFICATION ---------------------
 
     /**
      * login
@@ -132,7 +132,7 @@ export default function AuthProvider({ children }) {
 
             const user = response.data?.data?.user;
             if (user) {
-                console.log(user);
+
                 setAuth(user);
             } else {
                 await refreshUser();
@@ -187,7 +187,7 @@ export default function AuthProvider({ children }) {
         }
     }, [clearAuth]);
 
-    // ── EFFETS ────────────────────────────────────────────────────
+    // -- EFFETS -----------------------------------------
 
     /**
      * Hydratation initiale.
@@ -206,14 +206,11 @@ export default function AuthProvider({ children }) {
      */
     useEffect(() => {
         const handleUnauthenticated = () => {
-            // 401 reçu sur une requête protégée → la session a expiré.
             clearAuth();
         };
 
         const handleCsrfExpired = () => {
-            // 419 : le token CSRF est périmé.
-            // On déconnecte localement ; l'utilisateur devra se reconnecter
-            // (ce qui déclenche un nouveau getCsrfCookie).
+
             clearAuth();
         };
 
@@ -226,7 +223,7 @@ export default function AuthProvider({ children }) {
         };
     }, [clearAuth]);
 
-    // ── VALEUR DU CONTEXT ─────────────────────────────────────────
+    // -- VALEUR DU CONTEXT ------------------------------
 
     const value = useMemo(() => ({
         //state
@@ -240,6 +237,7 @@ export default function AuthProvider({ children }) {
         logout,
         refreshUser,
         checkAuth,
+        setAuth,
     }), [
         user,
         loading,
@@ -250,6 +248,7 @@ export default function AuthProvider({ children }) {
         logout,
         refreshUser,
         checkAuth,
+        setAuth,
     ]);
 
 

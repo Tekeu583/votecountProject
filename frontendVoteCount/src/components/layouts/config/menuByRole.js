@@ -6,7 +6,7 @@ import {
     UserCheck, Settings, CircleDollarSign,
     UserCog, Notebook, LayoutDashboard,
     User,
-    Trash2
+    Trash2, Wallet, ShieldCheck
 } from 'lucide-react';
 
 export const menuByRole = {
@@ -18,6 +18,8 @@ export const menuByRole = {
             { name: 'Elections', icon: Vote, path: 'elections' },
             { name: 'Categories', icon: Notebook, path: 'categories' },
             { name: 'Abonnements', icon: CreditCard, path: 'subscriptions' },
+            { name: 'Retraits', icon: Wallet, path: 'withdrawals' },
+            { name: 'Vérifications KYC', icon: ShieldCheck, path: 'kyc' },
             { name: 'Gestion des admins', icon: Users, path: 'admins' },
             { name: 'Utilisateurs', icon: Users, path: 'users' },
             { name: 'Journaux d’audit', icon: FileText, path: 'audit-logs' },

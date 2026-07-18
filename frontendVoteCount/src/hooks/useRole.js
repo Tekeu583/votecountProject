@@ -19,13 +19,13 @@ export function useRole() {
 
     /**
      * Tous les dashboards accessibles par l'utilisateur (pas seulement le
-     * rôle primaire) — source du RoleSwitcher.
+     * rôle primaire) - source du RoleSwitcher.
      */
     const availableRoles = getAvailableRoles(user);
 
     /**
      * Vérifie si l'utilisateur possède AU MOINS UN des rôles fournis.
-     * Basé sur getAvailableRoles() — pas uniquement user.roles (Spatie) —
+     * Basé sur getAvailableRoles() - pas uniquement user.roles (Spatie) -
      * pour reconnaître les rôles contextuels (ex: jury via election_user,
      * jamais synchronisé avec les rôles globaux).
      *
@@ -75,7 +75,7 @@ export function useRole() {
         hasRole,
         hasAllRoles,
         isRole,
-        // Raccourcis courants — évite d'importer les constantes partout
+        // Raccourcis courants - évite d'importer les constantes partout
         isSuperAdmin: isRole('super_admin'),
         isAdminOrg: isRole('organization_owner'),
         isJury: isRole('jury'),

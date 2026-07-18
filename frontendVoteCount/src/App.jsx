@@ -54,6 +54,8 @@ import ElectionCategoryVotePage from './pages/votePublic/ElectionCategoryVotePag
 import DashboardSuperHome from './pages/dashboards/DashboardSuperAdmin/DashboardSuperHome';
 import OrganisationsPage from './pages/dashboards/DashboardSuperAdmin/OrganisationsPage';
 import SubscriptionsPage from './pages/dashboards/DashboardSuperAdmin/SubscriptionsPage';
+import WithdrawalsPage from './pages/dashboards/DashboardSuperAdmin/WithdrawalsPage';
+import OrganizationKycReviewPage from './pages/dashboards/DashboardSuperAdmin/OrganizationKycReviewPage';
 import AuditLogsPage from './pages/dashboards/DashboardSuperAdmin/AuditLogsPage';
 import AdminsPage from './pages/dashboards/DashboardSuperAdmin/AdminsPage';
 import NotificationsPage from './pages/dashboards/DashboardSuperAdmin/NotificationsPage';
@@ -193,6 +195,8 @@ function AppRoutes() {
                     <Route index element={<DashboardSuperHome />} />
                     <Route path="organisations" element={<OrganisationsPage />} />
                     <Route path="subscriptions" element={<SubscriptionsPage />} />
+                    <Route path="withdrawals" element={<WithdrawalsPage />} />
+                    <Route path="kyc" element={<OrganizationKycReviewPage />} />
                     <Route path="audit-logs" element={<AuditLogsPage />} />
                     <Route path="admins" element={<AdminsPage />} />
                     <Route path="users" element={<Users />} />

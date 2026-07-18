@@ -3,6 +3,7 @@
 namespace App\Traits;
 
 use App\Models\AuditLog;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
@@ -29,18 +30,27 @@ trait HasAudit
         });
 
         static::deleted(function ($model) {
-            if (! $model->isForceDeleting()) {
+            $isForceDeleting = method_exists($model, 'isForceDeleting') && $model->isForceDeleting();
+
+            if (! $isForceDeleting) {
                 $model->logAudit('deleted', null, $model->getAttributes());
             }
         });
 
-        static::restored(function ($model) {
-            $model->logAudit('restored', $model->getAttributes(), null);
-        });
+        // restored/forceDeleted n'existent que sur les modèles utilisant
+        // SoftDeletes — les enregistrer inconditionnellement fait planter le
+        // boot (erreur "bootIfNotBooted... while it is being booted") sur
+        // tout modèle HasAudit qui ne fait PAS de suppression douce (ex.
+        // WithdrawalRequest).
+        if (in_array(\Illuminate\Database\Eloquent\SoftDeletes::class, class_uses_recursive(static::class), true)) {
+            static::restored(function ($model) {
+                $model->logAudit('restored', $model->getAttributes(), null);
+            });
 
-        static::forceDeleted(function ($model) {
-            $model->logAudit('force_deleted', null, $model->getAttributes());
-        });
+            static::forceDeleted(function ($model) {
+                $model->logAudit('force_deleted', null, $model->getAttributes());
+            });
+        }
     }
 
     public function logAudit(string $action, ?array $newValues = null, ?array $oldValues = null): void

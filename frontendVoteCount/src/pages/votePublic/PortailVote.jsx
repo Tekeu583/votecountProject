@@ -19,7 +19,7 @@ const rankLabel = (rank) => {
     return `${rank}ème`;
 };
 
-// ── Page principale ───────────────────────────────────────────────
+// -- Page principale ----------------------------------------------
 const PortailVote = () => {
     const { electionUuid } = useParams();
     const [searchTerm, setSearchTerm] = useState('');
@@ -54,10 +54,7 @@ const PortailVote = () => {
     const electionData = election.data;
     const isOngoing = electionData?.status === 'ongoing';
     const isClosed = ['closed', 'completed'].includes(electionData?.status);
-    // Gate du socket WebSocket uniquement (mises à jour à chaque vote).
     const liveEnabled = electionData?.real_time_results === true && isOngoing;
-    // Gate d'affichage voix/rang sur la carte — indépendant du statut, pour
-    // tous les types de vote : reste vrai même après la clôture de l'élection.
     const canShowResults = electionData?.public_results === true;
 
     const { liveScores, connected } = useLiveResults(
@@ -66,9 +63,6 @@ const PortailVote = () => {
         electionData?.live_scores
     );
 
-    // Une fois l'élection clôturée, les voix/rang affichés doivent venir du
-    // vrai dépouillement final (IRV compris pour ranked), pas de
-    // l'approximation live — sinon "provisoire" resterait affiché à tort.
     const [finalScores, setFinalScores] = useState(null);
     useEffect(() => {
         if (!isClosed || !electionData?.uuid) {
@@ -80,8 +74,6 @@ const PortailVote = () => {
             .catch(() => setFinalScores(null));
     }, [isClosed, electionData?.uuid]);
 
-    // Fusionne rank/rank_label/vote_count dans chaque candidat, depuis les
-    // résultats finaux (élection clôturée) ou live (élection en cours).
     const candidatesWithResults = useCallback(() => {
         const candidates = electionData?.candidates ?? [];
 
@@ -203,10 +195,6 @@ const PortailVote = () => {
         }
     };
 
-    // Vote multiple : toujours payant, aucun vote n'est créé ici — on
-    // transmet juste la sélection (candidat + montant par candidat) à la
-    // page de paiement, qui créera le vote au moment de payer (même
-    // principe que le vote payant single, cf. VotePayment.jsx).
     const continueMultipleToPayment = (items) => {
         navigate(`/vote/payement-multiple/${electionUuid}`, {
             state: {
@@ -255,7 +243,7 @@ const PortailVote = () => {
                 <div className="relative rounded overflow-hidden mb-16 shadow-2xl">
                     <Link
                         to="/elections"
-                        className="inline-flex items-center gap-2 absolute text-[var(--color-dark)] hover:text-blue-600 cursor-pointer top-4 left-4 z-20"
+                        className="inline-flex items-center gap-2 absolute text-[var(--color-primary)] hover:text-blue-600 cursor-pointer top-4 left-4 z-20"
                     >
                         <ChevronLeft size={16} /> Retour
                     </Link>

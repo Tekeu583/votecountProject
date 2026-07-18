@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\OrganizationKycStatus;
 use App\Traits\HasAudit;
 use App\Traits\HasSoftDeletesWithUser;
 use App\Traits\HasUuid;
@@ -38,16 +39,29 @@ class Organization extends Model
         'created_by',
         'deleted_by',
         'scheduled_permanent_delete_at',
+        'kyc_status',
+        'kyc_identity_document_type',
+        'kyc_identity_document_path',
+        'kyc_business_document_path',
+        'kyc_legal_representative_name',
+        'kyc_submitted_at',
+        'kyc_reviewed_at',
+        'kyc_reviewed_by',
+        'kyc_rejection_reason',
     ];
 
     protected $casts = [
         'verified_at' => 'datetime',
         'deleted_at' => 'datetime',
         'scheduled_permanent_delete_at' => 'datetime',
+        'kyc_status' => OrganizationKycStatus::class,
+        'kyc_submitted_at' => 'datetime',
+        'kyc_reviewed_at' => 'datetime',
     ];
 
     protected $attributes = [
         'status' => 'active',
+        'kyc_status' => 'not_submitted',
     ];
 
     // ========== RELATIONS ==========
@@ -94,6 +108,16 @@ class Organization extends Model
         return $this->hasMany(ImportJob::class);
     }
 
+    public function withdrawalRequests(): HasMany
+    {
+        return $this->hasMany(WithdrawalRequest::class);
+    }
+
+    public function kycReviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'kyc_reviewed_by');
+    }
+
     public function trashRecords(): HasMany
     {
         return $this->hasMany(TrashRecord::class);
@@ -123,12 +147,27 @@ class Organization extends Model
         return $this->banner ? asset('storage/'.$this->banner) : null;
     }
 
+    public function getKycIdentityDocumentUrlAttribute(): ?string
+    {
+        return $this->kyc_identity_document_path ? asset('storage/'.$this->kyc_identity_document_path) : null;
+    }
+
+    public function getKycBusinessDocumentUrlAttribute(): ?string
+    {
+        return $this->kyc_business_document_path ? asset('storage/'.$this->kyc_business_document_path) : null;
+    }
+
     public function getIsVerifiedAttribute(): bool
     {
         return ! is_null($this->verified_at);
     }
 
     // ========== HELPERS ==========
+
+    public function isKycVerified(): bool
+    {
+        return $this->kyc_status === OrganizationKycStatus::VERIFIED;
+    }
 
     public function hasActiveSubscription(): bool
     {

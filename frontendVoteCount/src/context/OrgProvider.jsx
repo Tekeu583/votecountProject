@@ -8,7 +8,7 @@ import { organizationsApi } from '@services/api';
  * OrgProvider
  *
  * RESPONSABILITÉS :
- * ─────────────────────────────────────────────────────────────────
+ * ------------------------------------------------
  * • Charger toutes les organisations de l'utilisateur connecté
  * • Identifier l'organisation active depuis le paramètre :orgUuid de l'URL
  * • Si :orgUuid absent ou invalide → rediriger vers la première organisation
@@ -34,7 +34,7 @@ export default function OrgProvider({ children }) {
     // Évite un double-chargement en StrictMode / re-montage rapide
     const hasLoadedRef = useRef(false);
 
-    // ── Chargement de toutes les organisations ───────────────────
+    // --- Chargement de toutes les organisations ----------------------------
 
     const loadOrgs = useCallback(async () => {
         setOrgLoading(true);
@@ -61,7 +61,7 @@ export default function OrgProvider({ children }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // ── Résolution de l'organisation active depuis l'URL ─────────
+    // --- Résolution de l'organisation active depuis l'URL ------------─
 
     useEffect(() => {
         // Attendre que le chargement initial soit terminé
@@ -88,7 +88,7 @@ export default function OrgProvider({ children }) {
         setOrg(found);
     }, [orgUuid, orgs, orgLoading, navigate]);
 
-    // ── Switcher d'organisation ──────────────────────────────────
+    // --- Switcher d'organisation ---------------------------------------------------
 
     /**
      * switchOrg
@@ -111,7 +111,7 @@ export default function OrgProvider({ children }) {
         navigate(`/org/${targetUuid}${rest}`, { replace: false });
     }, [orgUuid, navigate]);
 
-    // ── Valeur du context ────────────────────────────────────────
+    // --- Valeur du context ------------------------------------------------------------
     /**
        * refreshOrgs
        *

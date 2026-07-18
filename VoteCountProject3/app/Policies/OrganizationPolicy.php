@@ -67,4 +67,36 @@ class OrganizationPolicy
     {
         return $this->view($user, $organization) && $user->can('view payments');
     }
+
+    public function submitKyc(User $user, Organization $organization): bool
+    {
+        return $organization->owner_user_id === $user->id
+            || $this->isOrgAdmin($user, $organization)
+            || $user->can('submit organization kyc');
+    }
+
+    public function requestWithdrawal(User $user, Organization $organization): bool
+    {
+        return $organization->owner_user_id === $user->id
+            || $this->isOrgAdmin($user, $organization)
+            || $user->can('request withdrawals');
+    }
+
+    public function viewWithdrawals(User $user, Organization $organization): bool
+    {
+        return $this->view($user, $organization) && $user->can('view withdrawals');
+    }
+
+    /**
+     * Owner ou membre pivot role_slug=admin — cf. OrganizationController::
+     * addUser()/updateUserRole() dont la validation n'autorise que
+     * admin|member|viewer comme rôle pivot (owner est implicite, jamais
+     * réassignable).
+     */
+    private function isOrgAdmin(User $user, Organization $organization): bool
+    {
+        $pivot = $organization->users()->where('user_id', $user->id)->first()?->pivot;
+
+        return $pivot && $pivot->role_slug === 'admin';
+    }
 }

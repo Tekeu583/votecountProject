@@ -5,7 +5,7 @@
  * vote privé, persistée en sessionStorage.
  *
  * RESPONSABILITÉS :
- * ─────────────────────────────────────────────────────────────────
+ * ------------------------------------------------
  * • Hydrater la session au montage (sessionStorage → state)
  * • Exposer startSession / endSession / hasActiveSession
  * • Purger automatiquement une session expirée (TTL miroir du

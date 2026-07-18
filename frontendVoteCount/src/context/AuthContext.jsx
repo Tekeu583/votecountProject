@@ -7,14 +7,14 @@
  * La logique métier appartient à AuthProvider, pas ici.
  *
  * Pourquoi séparer Context et Provider ?
- * ─────────────────────────────────────────────────────────────────
+ * ------------------------------------------------------
  * • Évite les imports circulaires (useAuth importe Context, pas Provider).
  * • Permet de tester le Provider sans le hook, et vice-versa.
  * • Respecte le principe de responsabilité unique (SRP).
  *
  * La valeur par défaut (null) est intentionnelle :
  * useAuth détecte null pour lever une erreur si le hook est utilisé
- * hors du Provider — comportement fail-fast, préférable au silence.
+ * hors du Provider - comportement fail-fast, préférable au silence.
  */
 
 import { createContext } from "react";
@@ -24,10 +24,10 @@ import { createContext } from "react";
  *
  * Shape attendue fournie par AuthProvider :
  * {
- *   user:          Object | null    — données de l'utilisateur authentifié
- *   loading:       boolean          — hydratation initiale en cours
- *   authenticated: boolean          — session active confirmée
- *   errors:        Object           — erreurs de validation Laravel (422)
+ *   user:          Object | null    - données de l'utilisateur authentifié
+ *   loading:       boolean          - hydratation initiale en cours
+ *   authenticated: boolean          - session active confirmée
+ *   errors:        Object           - erreurs de validation Laravel (422)
  *
  *   login:         (credentials) => Promise<void>
  *   register:      (data)        => Promise<void>

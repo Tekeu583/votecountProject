@@ -10,7 +10,7 @@ import Logo from '@components/Logo';
 import MiniFooter from '@components/layouts/Minifooter';
 import { verifyResetOtp, resetPassword, forgotPassword } from '@services/api';
 
-// ─── Case OTP ─────────────────────────────────────────────────────
+// --- Case OTP ----------------------------------------------------
 const OtpBox = ({ value, onChange, onKeyDown, onPaste, inputRef, index, hasError }) => (
     <input
         ref={inputRef}
@@ -37,7 +37,7 @@ const OtpBox = ({ value, onChange, onKeyDown, onPaste, inputRef, index, hasError
     />
 );
 
-// ─── Timer renvoi ─────────────────────────────────────────────────
+// --- Timer renvoi ------------------------------------------------─
 const ResendTimer = ({ onResend, loading }) => {
     const [seconds, setSeconds] = useState(60);
     const canResend = seconds <= 0;
@@ -67,7 +67,7 @@ const ResendTimer = ({ onResend, loading }) => {
     );
 };
 
-// ─── Indicateur de force mot de passe ────────────────────────────
+// --- Indicateur de force mot de passe ---------------------------─
 const getPasswordStrength = (pwd) => {
     let score = 0;
     if (pwd.length >= 8) score++;
@@ -81,7 +81,7 @@ const getPasswordStrength = (pwd) => {
     return { label: 'Fort', color: 'var(--color-success)', width: '100%' };
 };
 
-// ─── Étape 1 : saisie OTP ─────────────────────────────────────────
+// --- Étape 1 : saisie OTP ----------------------------------------
 function OtpStep({ email, onVerified, onResend, resendLoading }) {
     const [digits, setDigits] = useState(Array(6).fill(''));
     const [loading, setLoading] = useState(false);
@@ -227,7 +227,7 @@ function OtpStep({ email, onVerified, onResend, resendLoading }) {
     );
 }
 
-// ─── Étape 2 : nouveau mot de passe ──────────────────────────────
+// --- Étape 2 : nouveau mot de passe ------------------------------
 function NewPasswordStep({ email, resetToken, onSuccess }) {
     const [form, setForm] = useState({ password: '', password_confirmation: '' });
     const [showPwd, setShowPwd] = useState(false);
@@ -369,7 +369,7 @@ function NewPasswordStep({ email, resetToken, onSuccess }) {
     );
 }
 
-// ─── Écran succès ─────────────────────────────────────────────────
+// --- Écran succès ------------------------------------------------─
 function SuccessScreen() {
     const navigate = useNavigate();
 
@@ -395,7 +395,7 @@ function SuccessScreen() {
     );
 }
 
-// ─── Page principale ──────────────────────────────────────────────
+// --- Page principale ---------------------------------------------─
 export default function ResetPasswordPage() {
     const location = useLocation();
     const navigate = useNavigate();

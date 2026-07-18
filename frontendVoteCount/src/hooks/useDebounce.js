@@ -9,8 +9,8 @@ import { useState, useEffect } from 'react';
  *   const debouncedSearch = useDebounce(searchTerm, 1000);
  *   useEffect(() => { fetchData(debouncedSearch); }, [debouncedSearch]);
  *
- * @param {*}      value  — valeur à debouncer (string, number, object...)
- * @param {number} delay  — délai en ms avant propagation (défaut : 1000)
+ * @param {*}      value  -- valeur à debouncer (string, number, object...)
+ * @param {number} delay  -- délai en ms avant propagation (défaut : 1000)
  * @returns valeur debouncée
  */
 export function useDebounce(value, delay = 1000) {

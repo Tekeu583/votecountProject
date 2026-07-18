@@ -46,6 +46,7 @@ export { auditApi }                  from './audit';
 export { settingsApi }               from './settings';
 export { categoriesApi }            from './categories';
 export { trashApi }                 from './trash';
+export { withdrawalsApi, kycApi }   from './withdrawals';
 
 
 // ── Utilitaires ────────────────────────────────────────────────────

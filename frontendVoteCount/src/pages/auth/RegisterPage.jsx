@@ -7,7 +7,7 @@ import { useAuth } from '@hooks/useAuth';
 import MiniFooter from '@components/layouts/Minifooter';
 import { getPrimaryRole, getRoleDefaultRoute } from '@utils/roleRoutes';
 import toast from 'react-hot-toast';
-// ─── Password strength ─────────────────
+// --- Password strength ----------------
 const getPasswordStrength = (pwd) => {
   let score = 0;
 
@@ -57,7 +57,7 @@ export default function RegisterPage() {
     }
   }, [authErrors]);
 
-  // ─── Handle change ─────────────────
+  // --- Handle change ----------------
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setForm((prev) => ({
@@ -66,7 +66,7 @@ export default function RegisterPage() {
     if (errors[name]) setErrors(prev => { const c = { ...prev }; delete c[name]; return c; });
   };
 
-  // ─── Validation ─────────────────
+  // --- Validation ----------------
   const validate = () => {
     const e = {};
 
@@ -100,7 +100,7 @@ export default function RegisterPage() {
     reader.onload = (event) => setLogoPreview(event.target.result);
     reader.readAsDataURL(file);
   };
-  // ─── Submit ─────────────────
+  // --- Submit ----------------
   const handleSubmit = async (e) => {
     e.preventDefault();
 

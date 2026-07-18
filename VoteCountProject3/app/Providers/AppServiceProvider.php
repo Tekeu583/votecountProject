@@ -36,6 +36,13 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
 
+        // Limite la soumission de demandes de retrait — anti-spam simple en
+        // complément du garde-fou métier (une seule demande pending/approved
+        // à la fois par organisation, cf. WithdrawalService::createRequest()).
+        RateLimiter::for('withdrawal-requests', function (Request $request) {
+            return Limit::perDay(5)->by($request->user()?->id ?: $request->ip());
+        });
+
         // Forcer les requêtes HTTPS en production
         if ($this->app->environment('production')) {
             URL::forceScheme('https');

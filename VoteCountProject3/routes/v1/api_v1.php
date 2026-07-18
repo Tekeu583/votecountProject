@@ -19,8 +19,10 @@ use App\Http\Controllers\Api\V1\Elections\JuryCriteriaController;
 use App\Http\Controllers\Api\V1\Elections\JuryScoreController;
 use App\Http\Controllers\Api\V1\Electors\ElectorController;
 use App\Http\Controllers\Api\V1\Organizations\OrganizationController;
+use App\Http\Controllers\Api\V1\Organizations\OrganizationKycController;
 use App\Http\Controllers\Api\V1\Payments\PaymentController;
 use App\Http\Controllers\Api\V1\Payments\RevenueController;
+use App\Http\Controllers\Api\V1\Payments\WithdrawalController;
 use App\Http\Controllers\Api\V1\Results\ResultController;
 use App\Http\Controllers\Api\V1\Settings\SettingController;
 use App\Http\Controllers\Api\V1\SubscriptionPlans\SubscriptionPlanController;
@@ -317,6 +319,22 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Revenus (historique des transactions)
     Route::get('payments/transactions', [RevenueController::class, 'index']);
     Route::get('payments/transactions/stats', [RevenueController::class, 'stats']);
+
+    // KYC des organisations (préalable aux retraits)
+    Route::get('organizations/kyc/pending', [OrganizationKycController::class, 'pendingReview']);
+    Route::post('organizations/{organization}/kyc', [OrganizationKycController::class, 'submit']);
+    Route::get('organizations/{organization}/kyc', [OrganizationKycController::class, 'show']);
+    Route::post('organizations/{organization}/kyc/review', [OrganizationKycController::class, 'review']);
+
+    // Retraits de revenus (paiement manuel effectué par le super_admin)
+    Route::get('withdrawals/balance', [WithdrawalController::class, 'balance']);
+    Route::get('withdrawals', [WithdrawalController::class, 'index']);
+    Route::post('withdrawals', [WithdrawalController::class, 'store'])->middleware('throttle:withdrawal-requests');
+    Route::get('withdrawals/{withdrawal}', [WithdrawalController::class, 'show']);
+    Route::post('withdrawals/{withdrawal}/approve', [WithdrawalController::class, 'approve']);
+    Route::post('withdrawals/{withdrawal}/reject', [WithdrawalController::class, 'reject']);
+    Route::post('withdrawals/{withdrawal}/mark-paid', [WithdrawalController::class, 'markPaid']);
+    Route::post('withdrawals/{withdrawal}/cancel', [WithdrawalController::class, 'cancel']);
 
     // Corbeille
     Route::get('trash', [TrashController::class, 'index']);

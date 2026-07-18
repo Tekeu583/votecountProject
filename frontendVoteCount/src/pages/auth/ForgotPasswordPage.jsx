@@ -10,7 +10,7 @@ import { forgotPassword, verifyResetOtp } from '@services/api';
 import Logo from '@components/Logo';
 import MiniFooter from '@components/layouts/Minifooter';
 
-// ── Timer renvoi ──────────────────────────────────────────────────
+// -- Timer renvoi --------------------------------------------------
 function ResendTimer({ onResend, loading }) {
     const [seconds, setSeconds] = useState(60);
 
@@ -40,7 +40,7 @@ function ResendTimer({ onResend, loading }) {
     );
 }
 
-// ── Étape 1 : saisie email ────────────────────────────────────────
+// -- Étape 1 : saisie email ----------------------------------------
 function EmailStep({ onSuccess }) {
     const [email, setEmail]       = useState('');
     const [error, setError]       = useState('');
@@ -103,13 +103,13 @@ function EmailStep({ onSuccess }) {
 
             <div className="flex items-center gap-2 mt-5 text-xs text-[var(--color-gray)]">
                 <ShieldCheck size={14} />
-                <p>Le code expire dans 10 minutes.</p>
+                <p>Le code expire dans 15 minutes.</p>
             </div>
         </>
     );
 }
 
-// ── Étape 2 : saisie OTP ──────────────────────────────────────────
+// -- Étape 2 : saisie OTP ------------------------------------------
 function OtpStep({ email, onSuccess, onResend }) {
     const [otp, setOtp]           = useState(['', '', '', '', '', '']);
     const [error, setError]       = useState('');
@@ -247,7 +247,7 @@ function OtpStep({ email, onSuccess, onResend }) {
     );
 }
 
-// ── Page principale ───────────────────────────────────────────────
+// -- Page principale ----------------------------------------------─
 export default function ForgotPasswordPage() {
     const navigate = useNavigate();
 

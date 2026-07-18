@@ -71,6 +71,13 @@ class RolesAndPermissionsSeeder extends Seeder
             'refund payments',
             'configure payments',
 
+            // Withdrawals & KYC organisation
+            'submit organization kyc',
+            'review organization kyc',
+            'request withdrawals',
+            'view withdrawals',
+            'approve withdrawals',
+
             // Analytics
             'view analytics',
             'export analytics',
@@ -189,6 +196,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'export results',
             'view payments',
             'process payments',
+            'submit organization kyc',
+            'request withdrawals',
+            'view withdrawals',
             'view analytics',
             'view settings',
             'view security alerts',

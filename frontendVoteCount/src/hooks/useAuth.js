@@ -5,7 +5,7 @@
  *
  *
  * GUARD DE CONTEXTE :
- * ─────────────────────────────────────────────────────────────────
+ * --------------------------------------------------
  * Si useAuth est appelé hors de AuthProvider, le contexte vaut null
  * (valeur par défaut de AuthContext). On détecte ce cas et on lève
  * une erreur explicite — comportement fail-fast préférable à un crash
@@ -26,6 +26,7 @@ import AuthContext from "@context/AuthContext";
  *   logout: () => Promise<void>,
  *   refreshUser: () => Promise<void>,
  *   checkAuth: () => Promise<void>,
+ *   setAuth: (userData: Object) => void,
  * }}
  */
 export function useAuth() {
