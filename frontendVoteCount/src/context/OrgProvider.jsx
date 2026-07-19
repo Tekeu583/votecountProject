@@ -44,7 +44,6 @@ export default function OrgProvider({ children }) {
             const list = res.data?.data ?? res.data ?? [];
             const arr = Array.isArray(list) ? list : [list];
             setOrgs(arr);
-            console.log(arr);
             return arr;
         } catch {
             setOrgError("Impossible de charger vos organisations.");

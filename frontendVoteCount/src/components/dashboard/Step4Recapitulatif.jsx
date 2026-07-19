@@ -184,7 +184,7 @@ const Step4Recapitulatif = ({ data, onPrevious, onPublish, isPublish = false, ha
                                     {/* Avatar */}
                                     <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 shrink-0">
                                         {c.photoPreview ? (
-                                            <img src={c.photo} alt={c.name}
+                                            <img src={c.photoPreview} alt={c.full_name}
                                                 className="w-full h-full object-cover" />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center">
@@ -195,7 +195,7 @@ const Step4Recapitulatif = ({ data, onPrevious, onPublish, isPublish = false, ha
 
                                     <div className="flex-1 min-w-0">
                                         <p className="font-medium text-sm text-gray-900 truncate">
-                                            {c.lastname} {c.name}
+                                            {c.full_name}
                                         </p>
                                         {c.slogan && (
                                             <p className="text-xs text-gray-500 italic truncate">
@@ -294,7 +294,7 @@ const Step4Recapitulatif = ({ data, onPrevious, onPublish, isPublish = false, ha
                                 </p>
                                 <ul className="list-disc list-inside mt-2 space-y-0.5">
                                     {uncategorizedCandidates.map((c, i) => (
-                                        <li key={i}>{c.lastname} {c.name}</li>
+                                        <li key={i}>{c.full_name}</li>
                                     ))}
                                 </ul>
                                 <p className="mt-2">Retournez à l'étape 2 pour leur assigner une catégorie.</p>

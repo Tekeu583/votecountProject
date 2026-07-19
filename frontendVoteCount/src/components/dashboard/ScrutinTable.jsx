@@ -14,7 +14,6 @@ export default function ScrutinTable({ data }) {
     }, [data, currentPage]);
 
     const totalPages = Math.ceil(data.length / itemsPerPage);
-
     const getStatusStyle = (status) => {
         switch (status) {
             case "EN COURS":

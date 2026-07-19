@@ -20,9 +20,6 @@ class TrashRecordResource extends JsonResource
             'uuid' => $this->uuid,
             'entity_type' => $this->entity_type,
             'entity_label' => self::TYPE_LABELS[$this->entity_type] ?? class_basename($this->entity_type),
-            // full_name (Candidate) ou title (Election) — les deux seuls
-            // types de corbeille pour l'instant (cf. TrashService, hooké
-            // uniquement sur ElectionController/CandidateController::destroy()).
             'name' => $snapshot['full_name'] ?? $snapshot['title'] ?? '—',
             'deleted_at' => $this->deleted_at?->toIso8601String(),
             'expires_at' => $this->expires_at?->toIso8601String(),

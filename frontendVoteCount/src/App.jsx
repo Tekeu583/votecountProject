@@ -7,12 +7,12 @@ import AuthProvider from './context/AuthProvider';
 import ProtectedRoute from './components/ProtectedRoute';
 import VoterSessionProvider from './context/VoterSessionProvider';
 
-// ── Layouts ───────────────────────────────────────────────────────
+// -- Layouts ------------------------------------------------------─
 import Navbar from './components/layouts/Navbar';
 import DashboardLayout from './components/layouts/DashboardLayout';
 import Layout from './layout/Layout';
 
-// ── Pages publiques ───────────────────────────────────────────────
+// -- Pages publiques ----------------------------------------------─
 import Home from './pages/Home';
 import DemoPage from './pages/DemoPage';
 import CommencerAujourdhui from './pages/CommencerAujourdhui';
@@ -34,12 +34,12 @@ import CandidateApplicationPage from './pages/CandidateApplicationPage';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import VerifyEmailPage from './pages/auth/Verifyemailpage';
 import ResetPasswordPage from './pages/auth/Resetpasswordpage';
-// ── Auth ──────────────────────────────────────────────────────────
+// -- Auth ----------------------------------------------------------
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 
-// ── Vote public ───────────────────────────────────────────────────
+// -- Vote public --------------------------------------------------─
 import HomeElection from './pages/votePublic/HomeElection';
 import PortailVote from './pages/votePublic/PortailVote';
 import CandidateDetailsPublic from './pages/votePublic/CandidateDetailsPublic';
@@ -50,7 +50,7 @@ import ElectionsOpenForCandidacy from './pages/votePublic/ElectionsOpenForCandid
 import ElectionPage from './pages/votePublic/ElectionPage';
 import ElectionCategoryVotePage from './pages/votePublic/ElectionCategoryVotePage';
 
-// ── Super Admin ───────────────────────────────────────────────────
+// -- Super Admin --------------------------------------------------─
 import DashboardSuperHome from './pages/dashboards/DashboardSuperAdmin/DashboardSuperHome';
 import OrganisationsPage from './pages/dashboards/DashboardSuperAdmin/OrganisationsPage';
 import SubscriptionsPage from './pages/dashboards/DashboardSuperAdmin/SubscriptionsPage';
@@ -66,7 +66,7 @@ import ElectionsPage from './pages/dashboards/DashboardSuperAdmin/ElectionsPage'
 import CorbeillePage from './pages/dashboards/DashboardSuperAdmin/CorbeillePage';
 import TelescopePage from './pages/dashboards/DashboardSuperAdmin/TelescopePage';
 
-// ── Admin Organisation ────────────────────────────────────────────
+// -- Admin Organisation --------------------------------------------
 import DashboardHome from './pages/dashboards/DashboardAdminOrg/DashboardHome';
 import AuditLogs from './pages/dashboards/DashboardAdminOrg/AuditLogs';
 import Candidats from './pages/dashboards/DashboardAdminOrg/Candidats';
@@ -83,14 +83,14 @@ import CreateScrutin from './pages/dashboards/DashboardAdminOrg/CreateScrutin';
 import EditScrutin from './pages/dashboards/DashboardAdminOrg/EditScrutin';
 import Corbeille from './pages/dashboards/DashboardAdminOrg/Corbeille';
 
-// ── Candidat ──────────────────────────────────────────────────────
+// -- Candidat ------------------------------------------------------
 import CandidateDashboard from './pages/dashboards/DashboardCandidat/CandidateDashboard';
 import ScrutinsCandidat from './pages/dashboards/DashboardCandidat/Scrutins';
 import ResultatsCandidat from './pages/dashboards/DashboardCandidat/Resultats';
 import ParametresCandidat from './pages/dashboards/DashboardCandidat/Parametres';
 import Candidatures from './pages/dashboards/DashboardCandidat/Candidatures';
 
-// ── Jury ──────────────────────────────────────────────────────────
+// -- Jury ----------------------------------------------------------
 import DashboardJury from './pages/dashboards/DashboardJury/DashboardJury';
 import ScrutinsJury from './pages/dashboards/DashboardJury/ScrutinsJury';
 import ParametresJury from './pages/dashboards/DashboardJury/ParametresJury';
@@ -105,17 +105,17 @@ import ParametresManager from './pages/dashboards/DashboardManager/ParametresMan
 
 import './App.css';
 import { ROLES } from '@utils/roles';
-// ─────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------─
 // CONSTANTES DE RÔLES
 // Centralisées ici pour éviter les fautes de frappe dans les routes.
-// ─────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------─
 
 // Préfixes de routes où la Navbar publique est cachée
 const NO_NAVBAR_PREFIXES = ['/super-admin', '/admin', '/jury', '/manager', '/org', '/candidat', '/vote'];
 
-// ─────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------─
 // APP
-// ─────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------─
 
 function AppRoutes() {
     const location = useLocation();
@@ -137,7 +137,7 @@ function AppRoutes() {
 
             <Routes>
 
-                {/* ── ROUTES PUBLIQUES ─────────────────────────── */}
+                {/* -- ROUTES PUBLIQUES --------------------------─ */}
                 <Route path="/" element={<Layout />}>
                     <Route index element={<Home />} />
                     <Route path="auth/login" element={<LoginPage />} />
@@ -177,13 +177,8 @@ function AppRoutes() {
                     <Route path="unauthorized" element={<UnauthorizedPage />} />
                 </Route>
 
-                {/* ── SUPER ADMIN ──────────────────────────────── */}
-                {/*
-                 * DashboardLayout gère loading + authenticated.
-                 * ProtectedRoute ajoute la vérification de rôle.
-                 * Les deux sont nécessaires : DashboardLayout évite le flash
-                 * de redirection, ProtectedRoute bloque les mauvais rôles.
-                 */}
+                {/* -- SUPER ADMIN -------------------------------- */}
+               
                 <Route
                     path="/super-admin"
                     element={
@@ -208,7 +203,7 @@ function AppRoutes() {
                     <Route path="telescope" element={<TelescopePage />} />
                 </Route>
 
-                {/* ── ADMIN ORGANISATION ───────────────────────── */}
+                {/* -- ADMIN ORGANISATION ------------------------─ */}
                 <Route
                     path="/org"
                     element={
@@ -242,7 +237,7 @@ function AppRoutes() {
                     <Route path="setting/subscription" element={<SubscriptionPage />} />
                 </Route>
 
-                {/* ── JURY ─────────────────────────────────────── */}
+                {/* -- JURY --------------------------------------─ */}
                 <Route
                     path="/jury"
                     element={
@@ -259,7 +254,7 @@ function AppRoutes() {
                     <Route path="results/:electionId?" element={<ResultatsJury />} />
                 </Route>
 
-                {/* ── GESTIONNAIRE D'ÉLECTION ─────────────────────── */}
+                {/* -- GESTIONNAIRE D'ÉLECTION ----------------------─ */}
                 <Route
                     path="/manager"
                     element={
@@ -275,7 +270,7 @@ function AppRoutes() {
                     <Route path="settings" element={<ParametresManager />} />
                 </Route>
 
-                {/* ── CANDIDAT ─────────────────────────────────── */}
+                {/* -- CANDIDAT ----------------------------------─ */}
                 <Route
                     path="/candidat"
                     element={
@@ -291,7 +286,7 @@ function AppRoutes() {
                     <Route path="settings" element={<ParametresCandidat />} />
                 </Route>
 
-                {/* ── FALLBACK ─────────────────────────────────── */}
+                {/* -- FALLBACK ----------------------------------─ */}
                 <Route path="*" element={<Navigate to="/" replace />} />
 
             </Routes>

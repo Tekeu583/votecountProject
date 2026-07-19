@@ -30,8 +30,6 @@ const CandidateDashboard = () => {
         fetchCandidacies();
     }, []);
 
-    // Élection mise en avant : celle en cours, sinon la plus récente
-    // (candidatesApi.getMine() renvoie déjà trié par created_at desc).
     const featured = useMemo(() => {
         const withElection = candidacies.filter((c) => c.election);
         return withElection.find((c) => c.election.status === 'ongoing') ?? withElection[0] ?? null;

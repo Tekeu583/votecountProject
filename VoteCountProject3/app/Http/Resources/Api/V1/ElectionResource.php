@@ -24,11 +24,6 @@ class ElectionResource extends JsonResource
             'election_mode' => $this->election_mode,
             'voter_code' => $this->when(
                 $request->user()
-                    // Nécessaire pour éviter un lazy load — Model::shouldBeStrict()
-                    // (AppServiceProvider) interdit le lazy loading dans tous les
-                    // environnements, pas seulement local. Si 'organization' n'a
-                    // pas été eager-loadée par l'appelant, ce champ est simplement
-                    // omis plutôt que de planter (comportement déjà "opt-in" via when()).
                     && $this->relationLoaded('organization')
                     && $this->organization
                     && $this->organization->users()

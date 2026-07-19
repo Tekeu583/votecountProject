@@ -23,13 +23,10 @@ class CreateElectionRequest extends FormRequest
             'banner' => ['nullable', 'image', 'max:5120', 'mimes:jpeg,png,jpg'],
 
             'election_mode' => ['required', 'in:public,private,restricted'],
-            // "score" existe dans l'enum VoteType mais n'a pas encore de bulletin
-            // dédié côté vote public (PortailVote.jsx) — le retirer des valeurs
-            // sélectionnables évite de créer des élections injouables.
             'vote_type' => ['required', 'in:single,multiple,ranked,weighted'],
 
             'visibility_type' => ['required', 'in:public,private,unlisted'],
-            'payment_type' => ['required', 'in:free,paid,subscription'],
+            'payment_type' => ['required', 'in:free,paid'],
             'verification_mode'  => ['sometimes', 'in:none,email,sms,both'],
             'timezone' => ['sometimes', 'string', 'timezone'],
             'fraud_detection_enabled' => ['sometimes', 'boolean'],
@@ -106,7 +103,7 @@ class CreateElectionRequest extends FormRequest
             'visibility_type.required'    => 'La visibilité est requise.',
             'visibility_type.in'          => 'Visibilité invalide. Valeurs : public, private, unlisted.',
             'payment_type.required'       => 'Le type de paiement est requis.',
-            'payment_type.in'             => 'Type de paiement invalide. Valeurs : free, paid, subscription.',
+            'payment_type.in'             => 'Type de paiement invalide. Valeurs : free, paid.',
             'verification_mode.in'        => 'Mode de vérification invalide. Valeurs : none, email, sms, both.',
             'start_at.required'           => 'La date de début est requise.',
             'start_at.after'              => 'La date de début doit être dans le futur.',

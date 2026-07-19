@@ -9,16 +9,12 @@ import {
 import toast from 'react-hot-toast';
 import { plansApi, paymentsApi, electionsApi, organizationsApi } from '@services/api';
 
-// ── Ordre des plans du moins au plus élevé ────────────────────────
-// Utilisé pour déterminer si un plan est inférieur/supérieur au plan courant.
 const PLAN_ORDER = ['free', 'basic', 'professional', 'enterprise'];
 
 const planRank = (slug) => {
     const idx = PLAN_ORDER.indexOf(slug);
     return idx === -1 ? 0 : idx;
 };
-
-// ── Constantes visuelles ──────────────────────────────────────────
 
 const PROVIDERS = [
     { id: 'orange_money', label: 'Orange Money', color: 'bg-orange-500' },
@@ -46,7 +42,7 @@ const PLAN_BADGE = {
     enterprise: 'bg-purple-600 text-white',
 };
 
-// ── Helpers ───────────────────────────────────────────────────────
+// -- Helpers ------------------------------------
 
 const formatLimit = (val) => (val === -1 ? 'Illimité' : String(val));
 
@@ -62,7 +58,7 @@ const formatDate = (iso) =>
         })
         : '—';
 
-// ── Modal paiement ────────────────────────────────────────────────
+// -- Modal paiement ---------------------------
 
 function PaymentModal({ plan, orgUuid, onClose, onSuccess }) {
     const [provider, setProvider] = useState('orange_money');
@@ -191,7 +187,7 @@ function PaymentModal({ plan, orgUuid, onClose, onSuccess }) {
     );
 }
 
-// ── Modal vérification paiement ───────────────────────────────────
+// -- Modal vérification paiement ----------------------------------─
 
 function VerifyModal({ transactionUuid, onClose, onSuccess }) {
     const [loading, setLoading] = useState(false);
@@ -243,7 +239,7 @@ function VerifyModal({ transactionUuid, onClose, onSuccess }) {
     );
 }
 
-// ── Page principale ───────────────────────────────────────────────
+// -- Page principale ----------------------------------------------─
 
 export default function SubscriptionPage() {
     const [plans, setPlans] = useState([]);
@@ -254,7 +250,7 @@ export default function SubscriptionPage() {
     const [selectedPlan, setSelectedPlan] = useState(null);
     const [transactionUuid, setTransactionUuid] = useState(null);
 
-    // ── Chargement ───────────────────────────────────────────────
+    // -- Chargement ----------------------------------------------─
 
     const loadAll = async () => {
         setLoading(true);
@@ -268,12 +264,12 @@ export default function SubscriptionPage() {
             setPlans(plansRes.data?.data ?? plansRes.data ?? []);
 
             const subData = subRes.data?.data ?? subRes.data;
-            console.log("subscriptions", subData);
+
             // On ne considère l'abonnement que s'il est actif (has_subscription = true)
             setCurrentSub(subData?.has_subscription ? subData.subscription : null);
 
             const orgs = orgRes.data?.data ?? orgRes.data ?? [];
-            console.log("orgs", orgs);
+
             const org = Array.isArray(orgs) ? orgs[0] : orgs;
             setOrganization(org);
 
@@ -281,7 +277,7 @@ export default function SubscriptionPage() {
                 const elRes = await electionsApi.getAll({ organization_id: org.id });
                 const elections = elRes.data?.data ?? elRes.data ?? [];
 
-                console.log("elections", elections);
+
                 setActiveCount(
                     Array.isArray(elections)
                         ? elections.filter(e => !['cancelled', 'archived'].includes(e.status)).length
@@ -297,7 +293,7 @@ export default function SubscriptionPage() {
 
     useEffect(() => { loadAll(); }, []);
 
-    // ── Handlers ─────────────────────────────────────────────────
+    // -- Handlers ---------------------------─
 
     const handlePaymentInitiated = (data) => {
         setSelectedPlan(null);
@@ -309,7 +305,7 @@ export default function SubscriptionPage() {
         loadAll();
     };
 
-    // ── Dérivés ──────────────────────────────────────────────────
+    // -- Dérivés -----------------------------
 
     const currentPlanSlug = currentSub?.plan?.slug ?? null;
     const currentRank = planRank(currentPlanSlug);
@@ -317,25 +313,6 @@ export default function SubscriptionPage() {
     const maxElections = currentSub?.plan?.max_elections ?? 1;
     const hasActiveSub = currentSub !== null;
     const isFreePlan = currentPlanSlug === 'free';
-
-    /**
-     * Logique bouton par plan :
-     *
-     *   Pas d'abonnement actif
-     *     → free    : "Activer gratuitement"  (gratuit, sans modal paiement)
-     *     → payants : "Choisir ce plan"        (ouvre modal paiement)
-     *
-     *   Plan gratuit actif
-     *     → free    : désactivé "Plan actuel"
-     *     → payants : "Passer à ce plan"       (ouvre modal paiement)
-     *
-     *   Plan payant actif
-     *     → plan courant    : désactivé "Plan actuel"
-     *     → plan inférieur  : désactivé "Plan inférieur"  (ne peut pas downgrader ici)
-     *     → plan supérieur  : "Passer à ce plan"          (ouvre modal paiement)
-     *
-     *   Plan expiré (handled: currentSub = null, même cas que "pas d'abonnement")
-     */
     const getButtonState = (plan) => {
         const isCurrent = plan.slug === currentPlanSlug;
         const rank = planRank(plan.slug);
@@ -367,14 +344,6 @@ export default function SubscriptionPage() {
         // Plan supérieur → upgrade possible
         return { disabled: false, label: 'Passer à ce plan', variant: 'upgrade' };
     };
-
-    /**
-     * Clic sur un bouton de plan.
-     * Si c'est le plan gratuit sans abonnement actif :
-     *   → On souscrit directement sans paiement via initiateSubscription
-     *     (le backend crée la subscription active immédiatement pour price=0).
-     * Sinon → ouvre la modal de paiement.
-     */
     const handlePlanClick = async (plan) => {
         if (plan.slug === 'free' && !hasActiveSub) {
             // Souscription gratuite directe — pas besoin de modal paiement
@@ -394,7 +363,7 @@ export default function SubscriptionPage() {
         setSelectedPlan(plan);
     };
 
-    // ── Chargement ───────────────────────────────────────────────
+    // -- Chargement ----------------------------------------------─
 
     if (loading) {
         return (
@@ -418,7 +387,7 @@ export default function SubscriptionPage() {
                 </p>
             </div>
 
-            {/* ── Abonnement courant ── */}
+            {/* -- Abonnement courant -- */}
             <div className="bg-white rounded-[var(--radius-md)] shadow-sm p-6">
                 <h2 className="text-base font-semibold text-[var(--color-dark)] mb-5">
                     Abonnement actuel
@@ -516,7 +485,7 @@ export default function SubscriptionPage() {
                 )}
             </div>
 
-            {/* ── Plans disponibles ── */}
+            {/* -- Plans disponibles -- */}
             <div>
                 <h2 className="text-base font-semibold text-[var(--color-dark)] mb-1">
                     Plans disponibles

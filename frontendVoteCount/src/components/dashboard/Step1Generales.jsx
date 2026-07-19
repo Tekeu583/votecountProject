@@ -18,7 +18,7 @@ import TextInput from '@components/ui/TextInput';
 import toast from 'react-hot-toast';
 import { NavLink } from 'react-router-dom';
 
-// ── Toggle Réutilisable (issu de la v2.0) ────────────────────────
+// -- Toggle Réutilisable ------------------------
 const Toggle = ({ name, checked, onChange, label, desc }) => (
     <div className="flex items-center justify-between py-3">
         <div>
@@ -41,19 +41,19 @@ const Toggle = ({ name, checked, onChange, label, desc }) => (
         </label>
     </div>
 );
-// ── Constantes ────────────────────────────────────────────────────
+// -- Constantes ----------------------------------------------------
 const VOTE_TYPES = [
     { id: 1, value: 'single', label: 'Vote simple', desc: 'Chaque votant choisit 1 candidat', icon: CheckCircle },
     { id: 2, value: 'multiple', label: 'Vote multiple', desc: 'Chaque votant choisit plusieurs candidats', icon: CheckSquare },
     { id: 3, value: 'ranked', label: 'Vote par classement', desc: 'Classement par ordre de préférence', icon: Trophy },
-    { id: 4, value: 'score', label: 'Vote par note', desc: 'Bientôt disponible', icon: Star, disabled: true },
+    { id: 4, value: 'score', label: 'Vote par note', desc: 'Note de 0 à 10 par candidat', icon: Star, disabled: true },
     { id: 5, value: 'weighted', label: 'Vote pondéré', desc: 'Vote public + jury avec poids', icon: Scale },
 ];
 
 const ELECTION_MODES = [
     { value: 'public', label: 'Public', desc: 'Tout le monde peut voter', icon: <Globe size={20} /> },
     { value: 'private', label: 'Privé', desc: 'Électeurs enregistrés avec code', icon: <Lock size={20} /> },
-    { value: 'restricted', label: 'Restreint', desc: 'Accès par invitation ou lien sécurisé', icon: <Users size={20} /> },
+    { value: 'restricted', label: 'Restreint', desc: 'Accès par invitation ou lien sécurisé', icon: <Users size={20} />, disabled: true },
 ];
 
 const VISIBILITY_TYPES = [
@@ -65,14 +65,13 @@ const VISIBILITY_TYPES = [
 const PAYMENT_TYPES = [
     { value: 'free', label: 'Gratuit', desc: 'Aucun frais' },
     { value: 'paid', label: 'Payant', desc: 'Frais par vote' },
-    { value: 'subscription', label: 'Abonnement', desc: 'Abonnement requis' },
 ];
 
 const VERIFICATION_MODES = [
     { value: 'none', label: 'Aucune', desc: 'Sans vérification' },
     { value: 'email', label: 'Email OTP', desc: 'Code par email' },
-    { value: 'sms', label: 'SMS OTP', desc: 'Code par SMS' },
-    { value: 'both', label: 'Email + SMS', desc: 'Double vérification' },
+    { value: 'sms', label: 'SMS OTP', desc: 'Code par SMS', disabled: true },
+    { value: 'both', label: 'Email + SMS', desc: 'Double vérification', disabled: true },
 ];
 
 const CURRENCIES = ['XAF', 'EUR', 'USD', 'GBP', 'XOF'];
@@ -80,6 +79,13 @@ const CURRENCIES = ['XAF', 'EUR', 'USD', 'GBP', 'XOF'];
 const toUtcIso = (localDatetime) => (localDatetime ? new Date(localDatetime).toISOString() : null);
 
 const MIN_START_AT = new Date(Date.now() + 60000).toISOString().slice(0, 16);
+
+// Badge affiché sur les options grisées (non encore implémentées côté backend).
+const SoonBadge = () => (
+    <span className="text-[10px] font-medium bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+        Bientôt disponible
+    </span>
+);
 
 const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
     const [image, setImage] = useState(null);
@@ -92,11 +98,20 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
         election_mode: initialData.election_mode || initialData.typeAccess || 'public',
         vote_type: initialData.vote_type || 'single',
         visibility_type: initialData.visibility_type || 'public',
-        payment_type: initialData.payment_type || (initialData.isPaid ? 'paid' : 'free'),
+        // Invariant : le vote multiple impose une élection payante. On force
+        // 'paid' à l'initialisation pour couvrir la reprise d'un brouillon
+        // multiple + free créé avant ce garde-fou (le changement en direct est
+        // géré par handleVoteTypeChange, la sélection de "free" est verrouillée
+        // dans le rendu).
+        payment_type: initialData.vote_type === 'multiple'
+            ? 'paid'
+            : (initialData.payment_type || (initialData.isPaid ? 'paid' : 'free')),
         verification_mode: initialData.verification_mode || 'none',
         start_at: initialData.start_at || initialData.startDate,
         end_at: initialData.end_at || initialData.endDate,
         max_votes_per_user: initialData.max_votes_per_user || 1,
+        // Nombre de candidats qu'un votant peut choisir (vote multiple uniquement).
+        max_choices: initialData.max_choices || 2,
         vote_price: initialData.vote_price || initialData.votePrice || 0,
         currency: initialData.currency || 'XAF',
 
@@ -176,7 +191,7 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
         reader.onload = (event) => setImage(event.target.result);
         reader.readAsDataURL(file);
     };
-    // ── Validation ─────────────────────────────────────────────
+    // -- Validation --------------------------------------------─
     const validate = () => {
         const e = {};
 
@@ -205,6 +220,13 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
 
         if (form.vote_type === 'multiple' && form.payment_type !== 'paid') {
             e.vote_type = 'Le vote multiple nécessite une élection payante';
+        }
+
+        if (form.vote_type === 'multiple') {
+            const mc = Number(form.max_choices);
+            if (!Number.isInteger(mc) || mc < 2 || mc > 50) {
+                e.max_choices = 'Nombre de choix requis (entier entre 2 et 50)';
+            }
         }
 
         if (form.accepts_candidates && isPublic) {
@@ -251,6 +273,12 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
             dataToSend.public_weight = form.public_weight_pct / 100;
             dataToSend.jury_weight = form.jury_weight_pct / 100;
         }
+
+        // max_choices n'a de sens que pour le vote multiple ; ailleurs on
+        // envoie null (colonne nullable côté backend).
+        dataToSend.max_choices = form.vote_type === 'multiple'
+            ? Number(form.max_choices)
+            : null;
 
         onNext(dataToSend);
     };
@@ -375,16 +403,36 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
                                         className="mt-1"
                                     />
                                     <div>
-                                        <p className="font-medium text-sm"><Icon size={16} color="var(--color-primary)" /> {vt.label}</p>
+                                        <p className="font-medium text-sm flex items-center gap-1.5 flex-wrap"><Icon size={16} color="var(--color-primary)" /> {vt.label} {vt.disabled && <SoonBadge />}</p>
                                         <p className="text-xs text-[var(--color-gray)] mt-0.5">{vt.desc}</p>
                                     </div>
                                 </label>)
                         })}
                     </div>
                     {form.vote_type === 'multiple' && (
-                        <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
-                            <AlertCircle size={12} /> Le vote multiple nécessite une élection payante — le paiement a été activé automatiquement.
-                        </p>
+                        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-[var(--radius-md)] p-5 space-y-3">
+                            <p className="text-xs text-amber-600 flex items-center gap-1">
+                                <AlertCircle size={12} /> Le vote multiple nécessite une élection payante — le paiement a été activé automatiquement.
+                            </p>
+                            <div className="max-w-xs">
+                                <label htmlFor="max_choices" className="block text-sm font-medium text-[var(--color-dark)] mb-1">
+                                    Nombre maximum de choix par votant <small className="text-red-600">*</small>
+                                </label>
+                                <input
+                                    id="max_choices"
+                                    type="number"
+                                    name="max_choices"
+                                    min="2"
+                                    max="50"
+                                    value={form.max_choices}
+                                    onChange={handleChange}
+                                    className={`w-full px-4 py-3 border rounded-[var(--radius-md)] focus:outline-none focus:border-[var(--color-primary)] ${errors.max_choices ? 'border-red-500' : 'border-[var(--color-gray-light)]'}`}
+                                />
+                                {errors.max_choices
+                                    ? <p className="text-xs text-red-600 mt-1">{errors.max_choices}</p>
+                                    : <p className="text-xs text-[var(--color-gray)] mt-1">Combien de candidats un votant peut sélectionner (entre 2 et 50).</p>}
+                            </div>
+                        </div>
                     )}
 
                     {form.vote_type === 'weighted' && (
@@ -429,10 +477,13 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
                         <label className="block text-sm font-medium text-[var(--color-dark)] mb-3 whitespace-nowrap">Mode d'élection <small className="text-red-600">*</small></label>
                         <div className="space-y-3">
                             {ELECTION_MODES.map(em => (
-                                <label key={em.value} className={`p-4 border rounded-[var(--radius-md)] cursor-pointer flex items-start gap-3 transition-all ${form.election_mode === em.value ? 'border-[var(--color-primary)] bg-blue-50' : 'border-[var(--color-gray-light)] hover:border-[var(--color-primary)]/50'}`}>
-                                    <input type="radio" name="election_mode" value={em.value} checked={form.election_mode === em.value} onChange={handleChange} className="mt-1" />
+                                <label key={em.value} className={`p-4 border rounded-[var(--radius-md)] flex items-start gap-3 transition-all
+                                    ${em.disabled
+                                        ? 'cursor-not-allowed opacity-50 border-[var(--color-gray-light)] bg-gray-50'
+                                        : 'cursor-pointer ' + (form.election_mode === em.value ? 'border-[var(--color-primary)] bg-blue-50' : 'border-[var(--color-gray-light)] hover:border-[var(--color-primary)]/50')}`}>
+                                    <input type="radio" name="election_mode" value={em.value} checked={form.election_mode === em.value} onChange={handleChange} disabled={em.disabled} className="mt-1" />
                                     <div className="flex-1">
-                                        <p className="font-medium flex items-center gap-2">{em.icon} {em.label}</p>
+                                        <p className="font-medium flex items-center gap-2 flex-wrap">{em.icon} {em.label} {em.disabled && <SoonBadge />}</p>
                                         <p className="text-xs text-[var(--color-gray)]">{em.desc}</p>
                                     </div>
                                 </label>
@@ -460,15 +511,27 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
                 <div>
                     <label className="block text-sm font-medium text-[var(--color-dark)] mb-3 whitespace-nowrap">Type de paiement <small className="text-red-600">*</small></label>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {PAYMENT_TYPES.map(pt => (
-                            <label key={pt.value} className={`p-4 border rounded-[var(--radius-md)] cursor-pointer flex items-start gap-3 transition-all ${form.payment_type === pt.value ? 'border-[var(--color-primary)] bg-blue-50' : 'border-[var(--color-gray-light)] hover:border-[var(--color-primary)]/50'}`}>
-                                <input type="radio" name="payment_type" value={pt.value} checked={form.payment_type === pt.value} onChange={handleChange} />
-                                <div>
-                                    <p className="font-medium">{pt.label}</p>
-                                    <p className="text-xs text-[var(--color-gray)]">{pt.desc}</p>
-                                </div>
-                            </label>
-                        ))}
+                        {PAYMENT_TYPES.map(pt => {
+                            // Le vote multiple impose une élection payante : l'option
+                            // "Gratuit" est verrouillée tant que ce type est choisi,
+                            // sinon le backend rejette la création.
+                            const locked = form.vote_type === 'multiple' && pt.value === 'free';
+                            return (
+                                <label key={pt.value} className={`p-4 border rounded-[var(--radius-md)] flex items-start gap-3 transition-all
+                                    ${locked
+                                        ? 'cursor-not-allowed opacity-50 border-[var(--color-gray-light)] bg-gray-50'
+                                        : 'cursor-pointer ' + (form.payment_type === pt.value ? 'border-[var(--color-primary)] bg-blue-50' : 'border-[var(--color-gray-light)] hover:border-[var(--color-primary)]/50')}`}>
+                                    <input type="radio" name="payment_type" value={pt.value} checked={form.payment_type === pt.value} onChange={handleChange} disabled={locked} />
+                                    <div>
+                                        <p className="font-medium flex items-center gap-1.5 flex-wrap">
+                                            {pt.label}
+                                            {locked && <span className="text-[10px] font-medium bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full whitespace-nowrap">Requis pour vote multiple</span>}
+                                        </p>
+                                        <p className="text-xs text-[var(--color-gray)]">{pt.desc}</p>
+                                    </div>
+                                </label>
+                            );
+                        })}
                     </div>
 
                     {form.payment_type === 'paid' && (
@@ -503,10 +566,13 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
                     <label className="block text-sm font-medium text-[var(--color-dark)] mb-3">Vérification des votants</label>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         {VERIFICATION_MODES.map(vm => (
-                            <label key={vm.value} className={`p-3 border rounded-[var(--radius-md)] cursor-pointer flex items-start gap-2 transition-all ${form.verification_mode === vm.value ? 'border-[var(--color-primary)] bg-blue-50' : 'border-[var(--color-gray-light)] hover:border-[var(--color-primary)]/50'}`}>
-                                <input type="radio" name="verification_mode" value={vm.value} checked={form.verification_mode === vm.value} onChange={handleChange} className="mt-1" />
+                            <label key={vm.value} className={`p-3 border rounded-[var(--radius-md)] flex items-start gap-2 transition-all
+                                ${vm.disabled
+                                    ? 'cursor-not-allowed opacity-50 border-[var(--color-gray-light)] bg-gray-50'
+                                    : 'cursor-pointer ' + (form.verification_mode === vm.value ? 'border-[var(--color-primary)] bg-blue-50' : 'border-[var(--color-gray-light)] hover:border-[var(--color-primary)]/50')}`}>
+                                <input type="radio" name="verification_mode" value={vm.value} checked={form.verification_mode === vm.value} onChange={handleChange} disabled={vm.disabled} className="mt-1" />
                                 <div>
-                                    <p className="font-medium text-sm">{vm.label}</p>
+                                    <p className="font-medium text-sm flex items-center gap-1.5 flex-wrap">{vm.label} {vm.disabled && <SoonBadge />}</p>
                                     <p className="text-xs text-[var(--color-gray)]">{vm.desc}</p>
                                 </div>
                             </label>

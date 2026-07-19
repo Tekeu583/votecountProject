@@ -75,7 +75,7 @@ class ElectionController extends BaseApiController
 
         return $this->paginated($elections, ElectionResource::class);
     }
-
+// getPublicElections
 
     /**
      * Récupérer les détails d'une catégorie pour l'affichage du banner

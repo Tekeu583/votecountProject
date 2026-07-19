@@ -30,8 +30,6 @@ export default function Scrutins() {
     const [candidacies, setCandidacies] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // Liste déjà entièrement chargée en mémoire (scrutins d'un seul candidat) :
-    // filtrage client instantané, pas besoin de useDebounce ici.
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
 

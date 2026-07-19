@@ -23,9 +23,6 @@ export default function Candidatures() {
     const [candidacies, setCandidacies] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // Liste déjà entièrement chargée en mémoire (une poignée de candidatures
-    // par candidat) : filtrage client instantané, pas besoin de useDebounce
-    // (utile uniquement quand la recherche déclenche un appel API).
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
 

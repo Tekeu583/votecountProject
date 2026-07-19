@@ -79,10 +79,6 @@ function ActionMenu({ election, orgUuid, onAction }) {
     {
       label: 'Modifier',
       icon: Pencil,
-      // Source de vérité unique : Election::getIsEditableAttribute()
-      // (déjà utilisé par EditScrutin.jsx) — une liste de statuts en dur
-      // ici se désynchronise dès que la règle backend évolue (ex. une
-      // élection "ongoing" sans vote redevient modifiable).
       show: election.is_editable,
       to: `/org/${orgUuid}/scrutins/${election.uuid}/edit`,
     },
@@ -455,6 +451,9 @@ export default function Scrutins() {
                               <span className="text-gray-300">·</span>
                               <span className="text-sm text-gray-700 capitalize">
                                 {election.vote_type}
+                              </span>
+                              <span className="text-sm text-gray-700 capitalize">
+                                {election.payment_type}
                               </span>
                               {/* Statut visible sur mobile */}
                               <span className="md:hidden">
