@@ -69,6 +69,12 @@ export const electionsApi = {
     // Terminer
     end: (uuid) => api.post(`${V1}/elections/${uuid}/end`),
 
+    // Suspendre (met en pause une élection en cours)
+    pause: (uuid) => api.post(`${V1}/elections/${uuid}/pause`),
+
+    // Reprendre (relance une élection suspendue)
+    resume: (uuid) => api.post(`${V1}/elections/${uuid}/resume`),
+
     // Statistiques
     statistics: (uuid) => api.get(`${V1}/elections/${uuid}/statistics`),
     /**

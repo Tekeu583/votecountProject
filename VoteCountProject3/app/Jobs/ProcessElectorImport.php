@@ -14,6 +14,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use App\Models\Notification as NotificationModel;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
@@ -54,6 +55,7 @@ class ProcessElectorImport implements ShouldQueue
                 continue;
             }
 
+            $elector = null;
             DB::beginTransaction();
             try {
                 $this->validateRow($row);
@@ -66,21 +68,28 @@ class ProcessElectorImport implements ShouldQueue
                     'import_batch_id' => $this->importJob->uuid,
                     'imported_by' => $this->importJob->imported_by,
                 ]);
-                if (
-                    $this->election->election_mode === 'private'
-                    && $this->election->voter_code
-                    && ! empty($row[1])
-                ) {
-                    Notification::route('mail', $row[1])
-                        ->notify(new VoterCodeNotification($this->election, $elector));
-                    $voterCodesSent++;
-                }
 
                 $this->importJob->addSuccess();
                 DB::commit();
             } catch (\Exception $e) {
                 DB::rollBack();
                 $this->importJob->addError($index + 1, $e->getMessage(), $row);
+                // Création échouée → surtout ne pas envoyer de code d'accès
+                // pour un électeur qui n'existe pas en base.
+                continue;
+            }
+            if (
+                $this->election->election_mode === 'private'
+                && $this->election->voter_code
+                && ! empty($row[1])
+            ) {
+                try {
+                    Notification::route('mail', $row[1])
+                        ->notify(new VoterCodeNotification($this->election, $elector));
+                    $voterCodesSent++;
+                } catch (\Exception $e) {
+                    Log::warning("Échec d'envoi du code électeur à {$row[1]} : {$e->getMessage()}");
+                }
             }
         }
 

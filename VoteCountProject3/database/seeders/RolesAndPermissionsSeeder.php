@@ -253,6 +253,12 @@ class RolesAndPermissionsSeeder extends Seeder
             'view results',
         ]);
 
+        $votant = Role::firstOrCreate(['name' => 'voter', 'guard_name' => 'web']);
+        $votant->givePermissionTo([
+            'view elections',
+            'view results',
+        ]);
+
         // User role — utilisateur standard nouvellement inscrit
         // Peut créer sa propre organisation (devient ensuite organization_owner)
         $user = Role::firstOrCreate(['name' => 'user', 'guard_name' => 'web']);

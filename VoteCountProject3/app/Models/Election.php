@@ -550,6 +550,18 @@ class Election extends Model
         $this->save();
     }
 
+    public function pause(): void
+    {
+        $this->status = ElectionStatus::PAUSED;
+        $this->save();
+    }
+
+    public function resume(): void
+    {
+        $this->status = ElectionStatus::ONGOING;
+        $this->save();
+    }
+
     public function cancel(): void
     {
         $this->status = ElectionStatus::CANCELLED;

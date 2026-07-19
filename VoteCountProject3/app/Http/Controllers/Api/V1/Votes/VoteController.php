@@ -54,6 +54,9 @@ class VoteController extends BaseApiController
             }
 
             if (! $election->is_votable) {
+                if ($election->status->value === 'paused') {
+                    return $this->error('Le vote est temporairement suspendu par l\'organisateur.', null, 400);
+                }
                 if ($election->end_at < now()) {
                     return $this->error('Election has ended', null, 400);
                 }
@@ -300,6 +303,9 @@ class VoteController extends BaseApiController
             }
 
             if (! $election->is_votable) {
+                if ($election->status->value === 'paused') {
+                    return $this->error('Le vote est temporairement suspendu par l\'organisateur.', null, 400);
+                }
                 if ($election->end_at < now()) {
                     return $this->error('Election has ended', null, 400);
                 }

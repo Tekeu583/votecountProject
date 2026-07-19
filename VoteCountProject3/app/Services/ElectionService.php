@@ -335,7 +335,7 @@ class ElectionService
 
     public function end(Election $election): void
     {
-        if (! in_array($election->status->value, ['published', 'ongoing'])) {
+        if (! in_array($election->status->value, ['published', 'ongoing', 'paused'])) {
             throw ElectionException::invalidStatus();
         }
 
@@ -345,6 +345,38 @@ class ElectionService
         dispatch(new CalculateElectionResults($election));
 
         event(new ElectionEnded($election));
+    }
+
+    /**
+     * Suspend une élection en cours : les votes sont bloqués (is_votable
+     * exige le statut ONGOING) sans clôturer le scrutin ni recalculer les
+     * résultats. Réversible via resume() tant que la date de fin n'est pas
+     * dépassée.
+     */
+    public function pause(Election $election): void
+    {
+        if ($election->status->value !== 'ongoing') {
+            throw ElectionException::invalidStatus();
+        }
+
+        $election->pause();
+    }
+
+    /**
+     * Relance une élection suspendue. Refusé si la date de fin est déjà
+     * passée : reprendre n'aurait aucun sens, le créneau de vote est clos.
+     */
+    public function resume(Election $election): void
+    {
+        if ($election->status->value !== 'paused') {
+            throw ElectionException::invalidStatus();
+        }
+
+        if ($election->end_at <= now()) {
+            throw new \Exception('La période de vote est terminée, impossible de reprendre cette élection.');
+        }
+
+        $election->resume();
     }
 
     public function addManager(Election $election, User $user, string $role = 'manager'): void

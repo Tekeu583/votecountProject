@@ -565,6 +565,24 @@ class ElectionController extends BaseApiController
         return $this->success(null, 'Election ended successfully');
     }
 
+    public function pause(Election $election): JsonResponse
+    {
+        $this->authorize('update', $election);
+
+        $this->electionService->pause($election);
+
+        return $this->success(null, 'Élection suspendue avec succès');
+    }
+
+    public function resume(Election $election): JsonResponse
+    {
+        $this->authorize('update', $election);
+
+        $this->electionService->resume($election);
+
+        return $this->success(null, 'Élection reprise avec succès');
+    }
+
     /**
      * @OA\Get(
      *     path="/api/v1/elections/{election}/statistics",

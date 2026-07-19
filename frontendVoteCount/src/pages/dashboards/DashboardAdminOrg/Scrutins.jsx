@@ -6,7 +6,7 @@ import {
   Plus, Search, BarChart3, ChevronLeft, ChevronRight,
   Trash2, Eye, Send, MoreVertical, RefreshCw, Loader2,
   Vote, Users, Clock, CheckCircle, XCircle, Archive,
-  Filter, Play, Square, Pencil,
+  Filter, Play, Pause, Square, Pencil,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { electionsApi } from '@services/api';
@@ -35,6 +35,7 @@ const STATUS_FILTERS = [
   { value: 'draft', label: 'Brouillons' },
   { value: 'published', label: 'Publiés' },
   { value: 'ongoing', label: 'En cours' },
+  { value: 'paused', label: 'En pause' },
   { value: 'closed', label: 'Clôturés' },
   { value: 'completed', label: 'Terminés' },
   { value: 'cancelled', label: 'Annulés' },
@@ -97,11 +98,25 @@ function ActionMenu({ election, orgUuid, onAction }) {
       className: 'text-green-600',
     },
     {
+      label: 'Mettre en pause',
+      icon: Pause,
+      show: election.status === 'ongoing',
+      onClick: () => { onAction('pause', election); close(); },
+      className: 'text-orange-600',
+    },
+    {
+      label: 'Reprendre',
+      icon: Play,
+      show: election.status === 'paused',
+      onClick: () => { onAction('resume', election); close(); },
+      className: 'text-green-600',
+    },
+    {
       label: 'Terminer',
       icon: Square,
-      show: election.status === 'ongoing',
+      show: ['ongoing', 'paused'].includes(election.status),
       onClick: () => { onAction('end', election); close(); },
-      className: 'text-orange-600',
+      className: 'text-red-600',
     },
     {
       label: 'Résultats',
@@ -256,6 +271,8 @@ export default function Scrutins() {
     publish: (e) => `Publier "${e.title}" ? Cette action est irréversible.`,
     start: (e) => `Démarrer "${e.title}" ? Les votants pourront commencer à voter.`,
     end: (e) => `Terminer "${e.title}" ? Le scrutin sera clôturé définitivement.`,
+    pause: (e) => `Mettre en pause "${e.title}" ? Les votes seront temporairement bloqués.`,
+    resume: (e) => `Reprendre "${e.title}" ? Les votes seront de nouveau acceptés.`,
     delete: (e) => `Supprimer "${e.title}" ? Cette action est irréversible.`,
   };
 
@@ -263,6 +280,8 @@ export default function Scrutins() {
     publish: (uuid) => electionsApi.publish(uuid),
     start: (uuid) => electionsApi.start(uuid),
     end: (uuid) => electionsApi.end(uuid),
+    pause: (uuid) => electionsApi.pause(uuid),
+    resume: (uuid) => electionsApi.resume(uuid),
     delete: (uuid) => electionsApi.delete(uuid),
   };
 
@@ -270,6 +289,8 @@ export default function Scrutins() {
     publish: 'Scrutin publié avec succès',
     start: 'Scrutin démarré avec succès',
     end: 'Scrutin clôturé avec succès',
+    pause: 'Scrutin mis en pause',
+    resume: 'Scrutin repris',
     delete: 'Scrutin supprimé',
   };
 

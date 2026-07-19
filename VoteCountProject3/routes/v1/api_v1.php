@@ -188,6 +188,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::prefix('elections/{election}')->group(function () {
         Route::post('/start', [ElectionController::class, 'start']);
         Route::post('/end', [ElectionController::class, 'end']);
+        Route::post('/pause', [ElectionController::class, 'pause']);
+        Route::post('/resume', [ElectionController::class, 'resume']);
         Route::get('/statistics', [ElectionController::class, 'statistics']);
         Route::post('/managers', [ElectionController::class, 'addManager']);
         Route::delete('/managers/{user}', [ElectionController::class, 'removeManager']);
