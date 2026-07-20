@@ -1,6 +1,50 @@
-*.vscode
+# Zips et archives (jamais dans Git)
 *.zip
-PROJET_CONTEXT.md
-*.claude
-*.vscode
+*.tar.gz
+*.rar
+*.7z
+
+# PDF (sauf si vraiment nécessaire)
 *.pdf
+
+# Environnements
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# Laravel
+VoteCountProject3/vendor/
+VoteCountProject3/node_modules/
+VoteCountProject3/public/hot
+VoteCountProject3/public/storage
+VoteCountProject3/storage/*.key
+VoteCountProject3/storage/logs/
+VoteCountProject3/storage/framework/cache/
+VoteCountProject3/storage/framework/sessions/
+VoteCountProject3/storage/framework/views/
+VoteCountProject3/storage/framework/testing/
+VoteCountProject3/bootstrap/cache/*.php
+!VoteCountProject3/bootstrap/cache/.gitignore
+VoteCountProject3/.phpunit.result.cache
+
+# React / Vite
+frontendVoteCount/node_modules/
+frontendVoteCount/dist/
+frontendVoteCount/.vite/
+frontendVoteCount/*.local
+
+# IDE et OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude / autres tools
+.claude/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
