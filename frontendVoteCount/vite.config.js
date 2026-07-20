@@ -60,12 +60,22 @@ export default defineConfig({
   },
   build: {
     sourcemap: false,
+    outDir: 'dist',
+    emptyOutDir: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'ui-vendor': ['axios', 'react-hot-toast', 'lucide-react'],
-        },
+        manualChunks: (id) => {                    // ← Changement important
+          if (id.includes('node_modules/react') ||
+            id.includes('node_modules/react-dom') ||
+            id.includes('react-router-dom')) {
+            return 'react-vendor';
+          }
+          if (id.includes('node_modules/axios') ||
+            id.includes('react-hot-toast') ||
+            id.includes('lucide-react')) {
+            return 'ui-vendor';
+          }
+        }
       },
     },
   },

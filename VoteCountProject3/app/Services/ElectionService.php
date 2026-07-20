@@ -276,7 +276,11 @@ class ElectionService
         // ── Vérification abonnement (commune aux deux chemins) ────────
         $organization = $election->organization;
 
-        if (! app()->isLocal() && ! $organization->hasActiveSubscription()) {
+        // Abonnement exigé par défaut, y compris si APP_ENV est mal configuré
+        // sur le serveur. Le contournement (dev local uniquement) passe par un
+        // flag env explicite — voir config/votecount.php.
+        if (! config('votecount.allow_publish_without_subscription')
+            && ! $organization->hasActiveSubscription()) {
             throw new \Exception(
                 'Un abonnement actif est requis pour publier une élection.'
             );

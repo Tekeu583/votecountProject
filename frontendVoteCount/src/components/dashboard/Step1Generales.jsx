@@ -178,7 +178,6 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
     //photo
     const handlePhotoUpload = (e) => {
         const file = e.target.files[0];
-        console.log(file);
         if (!file) return;
 
         if (file.size > 5 * 1024 * 1024) {

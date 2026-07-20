@@ -14,7 +14,14 @@ class CandidateResource extends JsonResource
         return [
             'uuid' => $this->uuid,
             'full_name' => $this->full_name,
-            'email'=>$this->email,
+            // PII : l'email n'est exposé que dans un contexte autorisé (gestionnaire
+            // de l'élection / admin d'organisation). Le contrôleur pose l'attribut
+            // 'expose_candidate_email' après vérification ; par défaut (routes
+            // publiques de vote/consultation) l'email reste masqué.
+            'email' => $this->when(
+                (bool) $request->attributes->get('expose_candidate_email', false),
+                fn () => $this->email
+            ),
             'slug' => $this->slug,
             'photo' => $this->photo ? asset('storage/' . $this->photo) : null,
             'cover_photo' => $this->cover_photo ? asset('storage/' . $this->cover_photo) : null,

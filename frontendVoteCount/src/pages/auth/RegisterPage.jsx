@@ -87,7 +87,6 @@ export default function RegisterPage() {
   //photo
   const handleLogoUpload = (e) => {
     const file = e.target.files[0];
-    console.log(file);
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
@@ -125,7 +124,6 @@ export default function RegisterPage() {
       fd.append('photo', form.photo);
       fd.append('terms', form.terms);
       const res = await register(fd);
-      console.log(res);
       navigate('/auth/verify-email', {
         state: { email: form.email, message: res.data.message }
       });

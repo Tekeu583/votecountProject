@@ -199,10 +199,6 @@ const CreateScrutin = () => {
             toast.error('Organisation introuvable.');
             return;
         }
-        console.log('📤 Données envoyées à l\'API:', {
-            organization_id: organization.uuid,
-            ...generalData
-        });
         setSubmitting(true);
         setSubmitLabel(draftUuid ? 'Mise à jour du brouillon...' : 'Création du brouillon...');
 
@@ -319,9 +315,7 @@ const CreateScrutin = () => {
         } catch (err) {
             const status = err.response?.status;
             const message = err.response?.data?.message ?? err.message ?? 'Erreur inconnue';
-            console.log('erreur ', err)
             if (status === 403 && message.toLowerCase().includes('abonnement')) {
-                // console.log('erreur ',err)
                 toast.error('Un abonnement est requis pour publier une élection.', { duration: 4000 });
                 navigate(`/org/${organization.uuid}/settings/subscription`);
                 return;

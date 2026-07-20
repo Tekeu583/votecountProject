@@ -18,7 +18,6 @@ export default function CandidatModal({ data, elections, onClose, onSuccess }) {
         slogan: data?.slogan ?? '',
         status: data?.status ?? 'pending',
     });
-    console.log('candodat', data);
     const [photo, setPhoto] = useState(null);
     const [photoPreview, setPhotoPreview] = useState(data?.photo ?? null);
     const [submitting, setSubmitting] = useState(false);

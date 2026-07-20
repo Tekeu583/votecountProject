@@ -19,7 +19,14 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [env('FRONTEND_URL', 'http://localhost:5173'), 'http://localhost:3000', 'http://localhost:5174'],
+    // Origines autorisées : uniquement celles définies par variables d'env.
+    // array_filter retire les valeurs vides — ainsi aucun localhost n'est
+    // codé en dur (il resterait sinon ouvert sur le serveur de production).
+    // En dev local : FRONTEND_URL=http://localhost:5173 (+ FRONTEND_URL_ALT au besoin).
+    'allowed_origins' => array_values(array_filter([
+        env('FRONTEND_URL'),
+        env('FRONTEND_URL_ALT'),
+    ])),
 
     'allowed_origins_patterns' => [],
 

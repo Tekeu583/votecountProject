@@ -23,7 +23,6 @@ const TarificationPage = () => {
     useEffect(() => {
         plansApi.getAll().then(res => {
             setPlanDetails(res.data.data);
-            console.log("Plan details →", res.data.data);
         });
     }, []);
 

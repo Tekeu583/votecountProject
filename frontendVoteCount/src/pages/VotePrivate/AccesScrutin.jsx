@@ -34,7 +34,6 @@ const AccesScrutin = () => {
                 email: form.email.trim(),
             });
 
-            console.log('Réponse:', response.data);
 
             const data = response.data?.data || response.data;
 

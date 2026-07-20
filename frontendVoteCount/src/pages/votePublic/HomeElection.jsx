@@ -45,7 +45,6 @@ export default function HomeElection() {
                 const pagination = response.data?.meta ?? {};
                 setElections(list);
                 setMeta(pagination);
-                console.log('Elections:', list);
             } catch (error) {
                 console.error('Error:', error);
                 setElections([]);

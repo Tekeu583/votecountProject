@@ -41,8 +41,11 @@ Route::post('payments/webhook/{provider}', [PaymentController::class, 'webhook']
 // ========== ROUTES PUBLIQUES (vote sans authentification) ==========
 Route::prefix('elections/{election}')->group(function () {
 
-    // Vote public - direct, sans authentification
-    Route::post('/vote/public', [VoteController::class, 'submitPublic']);
+    // Vote public - direct, sans authentification.
+    // throttle:20,1 → anti-flood bot ; le fingerprint gère déjà les doublons,
+    // limite volontairement large pour ne pas bloquer un réseau partagé (NAT).
+    Route::post('/vote/public', [VoteController::class, 'submitPublic'])
+        ->middleware('throttle:20,1');
     // Paiement pour vote (public comme privé - sans auth)
     Route::post('/vote/payment/initiate', [PaymentController::class, 'initiateForVote']);
     Route::post('/vote/payment/verify', [PaymentController::class, 'verifyVotePayment']);
@@ -72,7 +75,10 @@ Route::prefix('elections/{election}')->group(function () {
 // Vérifier le voter_code (de l'élection) + email (de l'électeur)
 Route::prefix('elections')->group(function () {
     // 1. Vérifier le voter_code - obtenir un session_token
-    Route::post('/vote/access/verify', [VoteController::class, 'verifyAccess']);
+    // throttle:6,1 → empêche l'abus du renvoi d'OTP (spam d'emails aux électeurs
+    // + épuisement du quota SMTP) à partir d'un voter_code partagé.
+    Route::post('/vote/access/verify', [VoteController::class, 'verifyAccess'])
+        ->middleware('throttle:6,1');
 
     // 2: Vérifier l'OTP envoyé à l'email de l'électeur.
     Route::post('/{election}/vote/access/verify-otp', [VoteController::class, 'verifyAccessOtp']);
@@ -89,8 +95,10 @@ Route::prefix('elections')->group(function () {
 
 // ========== ROUTES AUTH PUBLIQUES ==========
 Route::prefix('auth')->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/register', [AuthController::class, 'register'])
+        ->middleware('throttle:5,10');
+    Route::post('/login', [AuthController::class, 'login'])
+        ->middleware('throttle:10,1');
 
     // Vérification email
     Route::post('/verify-email/otp', [AuthController::class, 'verifyEmailOtp']);
@@ -98,7 +106,8 @@ Route::prefix('auth')->group(function () {
     Route::post('/verify-email/resend', [AuthController::class, 'resendVerification']);
 
     // Mot de passe oublié
-    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])
+        ->middleware('throttle:4,10');
     Route::post('/forgot-password/verify-otp', [AuthController::class, 'verifyResetOtp']);
     Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 

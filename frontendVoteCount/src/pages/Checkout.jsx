@@ -64,13 +64,11 @@ export default function Checkout() {
                 plan: data?.plan,
             };
 
-            console.log("PAYLOAD →", payload);
 
             // ================= API CALL =================
 
             const response = await paymentsApi.initiateSubscription(payload);
 
-            console.log("PAYMENT RESPONSE →", response);
 
             if (response?.data?.error) {
                 throw new Error(response?.data?.error);

@@ -70,7 +70,6 @@ export default function OrganisationsPage() {
           new_this_month: data.new_this_month ?? '—',
           with_active_election: data.with_active_election ?? '—',
         });
-        console.log(res.data);
       })
       .catch(() => {
         // Silencieux — les stats sont un bonus, pas bloquant

@@ -84,6 +84,10 @@ class OrganizationController extends BaseApiController
             return $this->forbidden('Accès non autorisé à cette organisation');
         }
 
+        // Contexte de gestion authentifié → l'email des candidats est exposé
+        // (masqué par défaut dans CandidateResource pour les routes publiques).
+        $request->attributes->set('expose_candidate_email', true);
+
         $query = Candidate::query()
             ->whereHas('election', function ($q) use ($organization) {
                 $q->where('organization_id', $organization->id);

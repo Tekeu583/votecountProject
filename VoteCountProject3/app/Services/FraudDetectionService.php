@@ -110,7 +110,10 @@ class FraudDetectionService
             'uuid' => \Illuminate\Support\Str::uuid()->toString(),
             'election_id' => $vote->election_id,
             'elector_id' => $vote->elector_id,
-            'user_id' => $vote->elector->user_id,
+            // Null-safe : elector_id est nullable (votes anonymes/invités) et,
+            // même présent, elector->user_id l'est aussi. security_alerts.user_id
+            // est nullable → on stocke null plutôt que de crasher.
+            'user_id' => $vote->elector?->user_id,
             'type' => 'fraud_detected',
             'severity' => $severity,
             'ip_address' => $vote->ip_address,

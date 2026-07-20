@@ -31,10 +31,23 @@ class CandidateController extends BaseApiController
 
     public function index(Election $election, Request $request): JsonResponse
     {
+        // Route publique MAIS aussi appelée par les gestionnaires authentifiés
+        // (SPA cookie stateful → $request->user() résolu). On distingue :
+        //  - gestionnaire de CETTE élection : voit tous les statuts + les emails ;
+        //  - visiteur public : uniquement les candidats approuvés, sans email
+        //    (anti-fuite de données personnelles).
+        $user = $request->user();
+        $canManage = $user && $user->can('manageCandidates', $election);
+
         $query = $election->candidates()->with(['category', 'user']);
 
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
+        if ($canManage) {
+            $request->attributes->set('expose_candidate_email', true);
+            if ($request->has('status')) {
+                $query->where('status', $request->status);
+            }
+        } else {
+            $query->where('status', 'approved');
         }
 
         if ($request->has('category_id')) {
@@ -91,8 +104,19 @@ class CandidateController extends BaseApiController
         return $this->created(new CandidateResource($candidate), 'Candidate created successfully');
     }
 
-    public function show(Election $election, Candidate $candidate): JsonResponse
+    public function show(Election $election, Candidate $candidate, Request $request): JsonResponse
     {
+        $canManage = $request->user() && $request->user()->can('manageCandidates', $election);
+
+        // Un candidat non approuvé n'est visible que par un gestionnaire.
+        if (! $canManage && $candidate->status !== 'approved') {
+            return $this->notFound('Candidat introuvable.');
+        }
+
+        if ($canManage) {
+            $request->attributes->set('expose_candidate_email', true);
+        }
+
         $candidate->load(['category', 'user', 'documents']);
 
         return $this->success(new CandidateResource($candidate));

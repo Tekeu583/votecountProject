@@ -332,20 +332,10 @@ const Step3Votants = ({ onNext, onPrevious, initialData = {}, electionMode = 'pu
             }
         }
 
-        // previewCount reflète toujours un import terminé (on bloque "Suivant"
-        // pendant qu'un import est en cours), donc plus besoin de valeur
-        // "inconnue" en attendant une réponse serveur.
         const totalVotants = existingElectorsCount + (importMethod === 'grouped'
             ? previewCount
             : manualVotants.length);
 
-        console.log(' Données envoyées à Step4:', {
-            importMethod,
-            totalVotants,
-            previewCount,
-            manualVotants: manualVotants.length,
-            uploadedFile: uploadedFile?.name || null,
-        });
         onNext({
             importMethod,
             totalVotants,

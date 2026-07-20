@@ -30,7 +30,6 @@ const ContactPage = () => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        console.log('Form submitted:', formData);
         // Ici tu peux ajouter l'appel API ou l'intégration (ex: EmailJS, Formspree, etc.)
         toast.success("Message envoyé ! (Simulation)");
     };

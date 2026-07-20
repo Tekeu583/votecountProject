@@ -183,7 +183,6 @@ const CandidateApplicationPage = () => {
 
         if (Object.keys(newErrors).length > 0) {
             setErrors(newErrors);
-            console.log(`Erreurs: ${newErrors}`);
             toast.error('Veuillez corriger les erreurs dans le formulaire');
             return;
         }
@@ -234,7 +233,6 @@ const CandidateApplicationPage = () => {
                     formattedErrors[key] = validationErrors[key][0];
                 });
                 setErrors(formattedErrors);
-                console.log('Validation errors from server:', formattedErrors);
                 toast.error('Veuillez corriger les erreurs dans le formulaire', { id: submitToast });
             } else if (error.response?.status === 403) {
                 toast.error('Vous n\'êtes pas autorisé à candidater pour cette élection', { id: submitToast });

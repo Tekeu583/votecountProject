@@ -13,8 +13,12 @@ class VerifyAccessRequest extends FormRequest
 
     public function rules(): array
     {
+        // Pas de règle exists sur voter_code : elle renverrait un 422 distinct
+        // qui révélerait si le code existe (incohérent avec l'anti-énumération
+        // du contrôleur). VoteController::verifyAccess() gère l'invalidité de
+        // façon uniforme (404 « Code d'accès invalide »).
         return [
-            'voter_code' => ['required', 'string', 'exists:elections,voter_code'],
+            'voter_code' => ['required', 'string'],
             'email' => ['required', 'email'],
         ];
     }
@@ -22,7 +26,6 @@ class VerifyAccessRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'voter_code.exists' => 'Code d\'accès invalide.',
             'email.required' => 'Votre adresse email est requise.',
             'email.email' => 'Adresse email invalide.',
         ];

@@ -13,7 +13,7 @@ import { useAuth } from '@hooks/useAuth';
 
 const CommencerAujourdhui = () => {
     const navigate = useNavigate();
-    const { refreshUser, user } = useAuth();
+    const { refreshUser } = useAuth();
 
     const [formData, setFormData] = useState({
         name: '',
@@ -95,12 +95,11 @@ const CommencerAujourdhui = () => {
             if (formData.logo) fd.append('logo', formData.logo);
             if (formData.banner) fd.append('banner', formData.banner)
 
-            const res = await organizationsApi.create(fd);
+            await organizationsApi.create(fd);
 
             // Rafraîchir le user pour avoir son nouveau rôle organization_owner
             await refreshUser?.();
 
-            console.log('response', res, 'user', user);
             toast.success('Organisation créée avec succès !', {
                 icon: <ZapIcon size={20} className="text-green-500" />,
             });
@@ -116,15 +115,12 @@ const CommencerAujourdhui = () => {
                 // Erreurs de validation Laravel
                 const backendErrors = data?.errors ?? {};
                 setErrors(backendErrors);
-                console.log('erreur validation: ', data?.message)
                 toast.error(data?.message ?? 'Erreur de validation.');
             } else if (status === 403) {
                 toast.error("Vous n'êtes pas autorisé à créer une organisation.");
-                console.log(data || 'Acces refuser');
             } else if (status === 401) {
                 toast.error("Veillez vous connecter");
             } else {
-                console.log('erreur: ', data?.message);
                 toast.error(data?.message ?? 'Une erreur est survenue.');
             }
         } finally {

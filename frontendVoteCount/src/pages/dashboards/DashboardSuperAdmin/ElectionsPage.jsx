@@ -8,7 +8,7 @@ import ElectionModal from './ElectionModal';
 import toast from 'react-hot-toast';
 import TextInput from '@components/ui/TextInput';
 import StatCard from '@components/dashboard/StatCard';
-import { electionsApi, analyticsApi } from '@services/api';
+import { electionsApi } from '@services/api';
 import { FadeLoader } from 'react-spinners';
 import { useDebounce } from '@hooks/useDebounce';
 
@@ -71,8 +71,7 @@ export default function ElectionsPage() {
       const data = response.data?.data ?? [];
       const meta = response.data?.meta ?? EMPTY_PAGE.meta;
       setElections({ data, meta });
-    } catch (error) {
-      console.log("error", error);
+    } catch {
       toast.error('Impossible de charger les élections');
       setElections(EMPTY_PAGE);
     } finally {
@@ -93,7 +92,6 @@ export default function ElectionsPage() {
           total_votes: d.total_votes ?? '—',
           new_this_month: d.new_this_month ?? '—',
         });
-        console.log("stat elections", d);
       })
       .catch(() => { }); // silencieux — bonus
   }, []);

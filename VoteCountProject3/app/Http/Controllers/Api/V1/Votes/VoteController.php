@@ -123,27 +123,18 @@ class VoteController extends BaseApiController
      */
     public function verifyAccess(VerifyAccessRequest $request): JsonResponse
     {
-        // Vérifier le voter_code
         $election = Election::where("voter_code", $request->voter_code)
             ->first();
 
-        if (!$election) {
-            return $this->error('Invalid voter code', null, 404);
+        if (!$election || $election->election_mode !== 'private') {
+            return $this->error('Code d\'accès invalide.', null, 404);
         }
 
         $elector = Elector::where('election_id', $election->id)
             ->where('email', $request->email)
             ->where('status', 'active')
             ->first();
-        if (!$elector) {
-            return $this->error('Invalid email', null, 404);
-        }
 
-        // Vérifier que l'élection est privée
-        if ($election->election_mode !== 'private') {
-            return $this->error('This endpoint is for private elections only', null, 400);
-        }
-        // access_token créé dans tous les cas — ne révèle jamais si l'email existe.
         $accessToken = bin2hex(random_bytes(32));
 
         $votesUsed = $elector ? $elector->votes()
@@ -178,7 +169,7 @@ class VoteController extends BaseApiController
             'access_token' => $accessToken,
             'expires_in' => 1800,
             'uuid_election' => $election->uuid,
-        ], 'un code vous a été envoyé par email.');
+        ], 'Si cet email est inscrit sur la liste électorale, un code de vérification vient de lui être envoyé.');
     }
 
     /**
@@ -438,10 +429,6 @@ class VoteController extends BaseApiController
             ->orderBy('created_at', 'desc')
             ->paginate($request->input('per_page', 15));
 
-        // VoteResource lit $this->election?->currency sans garde whenLoaded —
-        // sans ça, chaque vote relançait un lazy load de la MÊME élection déjà
-        // en mémoire (route model binding). setRelation évite la requête
-        // entièrement plutôt que de la dupliquer via with('election').
         $votes->getCollection()->each(fn ($vote) => $vote->setRelation('election', $election));
 
         return $this->paginated($votes, VoteResource::class);

@@ -107,7 +107,6 @@ const Step2Candidats = ({ onNext, onPrevious, initialData = [], electionUuid = n
             try {
                 const res = await electionsApi.getCategories(electionUuid);
                 setCategories(res.data?.data ?? []);
-                console.log('cat', res.data?.data ?? []);
             } catch {
                 // non bloquant
             } finally {

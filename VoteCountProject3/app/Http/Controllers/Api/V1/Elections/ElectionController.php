@@ -244,6 +244,8 @@ class ElectionController extends BaseApiController
      */
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Election::class);
+
         $elections = $this->electionService->getFilteredElections($request);
 
         return $this->paginated($elections, ElectionResource::class);
