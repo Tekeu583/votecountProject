@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════
-# BACKEND LARAVEL — PHP 8.3 + PostgreSQL + Redis (phpredis)
+# BACKEND LARAVEL — PHP 8.4 + PostgreSQL + Redis (phpredis)
 # ═══════════════════════════════════════════════════════════════
 FROM php:8.4-fpm
 
