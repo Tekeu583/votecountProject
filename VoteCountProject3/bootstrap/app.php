@@ -107,6 +107,17 @@ return Application::configure(basePath: dirname(__DIR__))
         }
     });
 
+    $exceptions->render(function (\Symfony\Component\Routing\Exception\RouteNotFoundException $e, \Illuminate\Http\Request $request) {
+        if ($request->is('api/*') || $request->expectsJson()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Non authentifié.',
+                'errors' => null,
+                'data' => null,
+            ], 401);
+        }
+    });
+
     $exceptions->render(function (\Symfony\Component\HttpKernel\Exception\NotFoundHttpException $e, \Illuminate\Http\Request $request) {
         if ($request->is('api/*') || $request->expectsJson()) {
             return response()->json([
