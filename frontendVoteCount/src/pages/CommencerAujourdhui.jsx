@@ -92,9 +92,17 @@ const CommencerAujourdhui = () => {
             fd.append('phone', formData.phone);
             fd.append('address', formData.address);
             fd.append('description', formData.description);
-            if (formData.logo) fd.append('logo', formData.logo);
-            if (formData.banner) fd.append('banner', formData.banner)
+            if (formData.logo instanceof File) {
+                fd.append('logo', formData.logo);
+            }
+            if (formData.banner instanceof File) {
+                fd.append('banner', formData.banner);
+            }
+            fd.append('website', formData.website);
+            fd.append('country', formData.country);
+            fd.append('city', formData.city);
 
+            // Créer l'organisation
             await organizationsApi.create(fd);
 
             // Rafraîchir le user pour avoir son nouveau rôle organization_owner
