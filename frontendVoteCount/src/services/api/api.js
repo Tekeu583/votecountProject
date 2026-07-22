@@ -57,7 +57,7 @@ const api = axios.create({
     },
 
     // Timeout raisonnable. Au-delà, l'intercepteur traite l'erreur réseau.
-    timeout: 15000,
+    timeout: 120000,
 });
 
 // ─────────────────────────────────────────────────────────────────
@@ -70,6 +70,7 @@ api.interceptors.request.use(
         // FormData : laisser le navigateur gérer Content-Type (boundary multipart)
         if (config.data instanceof FormData) {
             delete config.headers["Content-Type"];
+            config.timeout = 300000; // 5 minutes
         }
         // Point d'extension : logging, ajout de headers dynamiques, etc.
         // Ne jamais injecter de token ici — Axios gère XSRF automatiquement.
