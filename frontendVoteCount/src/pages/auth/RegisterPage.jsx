@@ -118,11 +118,13 @@ export default function RegisterPage() {
       fd.append('first_name', form.first_name.trim());
       fd.append('last_name', form.last_name.trim());
       fd.append('email', form.email);
-      fd.append('phone', form.phone);
+      if (form.phone?.trim()) fd.append('phone', form.phone.trim());
       fd.append('password', form.password.trim());
       fd.append('password_confirmation', form.password_confirmation.trim());
-      fd.append('photo', form.photo);
-      fd.append('terms', form.terms);
+      if (form.photo instanceof File) {
+        fd.append('photo', form.photo);
+      }
+      fd.append('terms', form.terms ? '1' : '0');
       const res = await register(fd);
       navigate('/auth/verify-email', {
         state: { email: form.email, message: res.data.message }
