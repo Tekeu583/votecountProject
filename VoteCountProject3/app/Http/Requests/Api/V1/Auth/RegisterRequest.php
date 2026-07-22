@@ -41,6 +41,7 @@ class RegisterRequest extends FormRequest
             'password.min' => 'Le mot de passe doit contenir au moins 8 caractères',
             'password.confirmed' => 'La confirmation du mot de passe ne correspond pas',
             'photo.max' => "La photo ne doit pas depasser 5 Mo",
+            'terms.required' => 'Vous devez accepter les conditions d\'utilisation',
             'terms.accepted' => 'Vous devez accepter les conditions d\'utilisation',
         ];
     }
