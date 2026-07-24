@@ -49,10 +49,6 @@ const Step3Votants = ({ onNext, onPrevious, initialData = {}, electionMode = 'pu
     const [importJobId, setImportJobId] = useState(null);
     const pollIntervalRef = useRef(null);
 
-    // Électeurs déjà en base pour cette élection au moment où l'étape se
-    // charge (import précédent, reprise de brouillon...). Sans ça, revenir
-    // sur l'étape avec des électeurs déjà créés mais aucun nouveau fichier
-    // sélectionné bloque à tort la validation d'une élection privée.
     const [existingElectorsCount, setExistingElectorsCount] = useState(0);
 
     useEffect(() => {
@@ -113,12 +109,6 @@ const Step3Votants = ({ onNext, onPrevious, initialData = {}, electionMode = 'pu
         XLSX.writeFile(wb, 'modele_import_votants.xlsx');
     };
 
-
-    // Ramène n'importe quelle forme d'erreur (objets ImportError du backend,
-    // objet de validation Laravel {champ: [messages]}, chaînes) à un tableau
-    // de chaînes affichables. Sans ça, un rendu `{err.message || err}` sur un
-    // objet fait planter React ("Objects are not valid as a React child") et
-    // c'est ce qui provoquait l'écran blanc après "import lancé en arrière-plan".
     const normalizeErrors = (errors) => {
         if (!errors) return [];
         if (Array.isArray(errors)) {
@@ -307,21 +297,12 @@ const Step3Votants = ({ onNext, onPrevious, initialData = {}, electionMode = 'pu
     // ── Navigation ───────────────────────────────────────────────
 
     const handleNext = () => {
-        // L'import (fichier) crée les électeurs en base de façon asynchrone :
-        // tant qu'il n'est pas terminé, on ne sait pas encore s'il a réussi.
         if (importing) {
             toast.error("Import en cours, veuillez patienter avant de continuer.");
             return;
         }
 
         if (isPrivate) {
-            // previewCount n'est renseigné qu'après un import réellement
-            // abouti côté serveur (ou une saisie manuelle) — un fichier
-            // simplement sélectionné (uploadedFile !== null) ne garantit pas
-            // qu'un seul électeur ait été créé en base. Mais s'il y a déjà
-            // des électeurs en base (import précédent, reprise de brouillon)
-            // et qu'aucun nouveau fichier n'a été sélectionné, on continue :
-            // pas besoin de réimporter pour avancer.
             const hasGroupedData = importMethod === 'grouped'
                 ? (previewCount > 0 || existingElectorsCount > 0)
                 : (manualVotants.length > 0 || existingElectorsCount > 0);

@@ -1,0 +1,66 @@
+name: Déploiement Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Déploiement sur VPS Contabo
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Récupération du code
+        uses: actions/checkout@v4
+
+      - name: Configuration de la clé SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Ajout du VPS aux hôtes connus
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p 2222 -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Déploiement sur le VPS
+        run: |
+          ssh -p 2222 ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+            set -e
+            echo "→ Déploiement démarré à $(date)"
+
+            cd ~/apps/votecount
+
+            echo "→ Récupération de la dernière version..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "→ Rebuild des images Docker..."
+            docker compose up -d --build
+
+            echo "→ Attente que le backend soit prêt (30s)..."
+            sleep 30
+
+            echo "→ Exécution des migrations..."
+            docker compose exec -T backend php artisan migrate --force
+
+            echo "→ Rafraîchissement des caches..."
+            docker compose exec -T backend php artisan optimize:clear
+            docker compose exec -T backend php artisan config:cache
+
+            echo "→ Vérification de l'état des containers..."
+            docker compose ps
+
+            echo "✓ Déploiement terminé à $(date)"
+          EOF
+
+      - name: Vérification post-déploiement
+        run: |
+          sleep 10
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://api.votecount.space/api/v1/elections/public)
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✓ API répond correctement (HTTP 200)"
+          else
+            echo "✗ API renvoie HTTP $HTTP_CODE — problème de déploiement"
+            exit 1
+          fi
