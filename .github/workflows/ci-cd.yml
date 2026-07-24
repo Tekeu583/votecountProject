@@ -21,7 +21,7 @@ jobs:
         env:
           POSTGRES_DB: votecountproject3_test
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: password_test
+          POSTGRES_PASSWORD: tarsenek
         ports:
           - 5432:5432
         options: >-
@@ -61,7 +61,7 @@ jobs:
           echo "DB_PORT=5432" >> .env
           echo "DB_DATABASE=votecountproject3_test" >> .env
           echo "DB_USERNAME=postgres" >> .env
-          echo "DB_PASSWORD=password_test" >> .env
+          echo "DB_PASSWORD=tarsenek" >> .env
           echo "REDIS_HOST=127.0.0.1" >> .env
           echo "REDIS_PORT=6379" >> .env
           echo "REDIS_CLIENT=phpredis" >> .env
