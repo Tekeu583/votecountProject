@@ -171,6 +171,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('organizations/{organization}/users/{user}', [OrganizationController::class, 'updateUserRole']);
     Route::delete('organizations/{organization}/users/{user}', [OrganizationController::class, 'removeUser']);
     Route::get('organizations/{organization}/candidates', [OrganizationController::class, 'getCandidates']);
+    Route::get('organizations/{organization}/candidate-applications', [OrganizationController::class, 'getApplications']);
     Route::get('organizations/{organization}/electors', [OrganizationController::class, 'getElectors']);
     Route::apiResource('organizations', OrganizationController::class);
 

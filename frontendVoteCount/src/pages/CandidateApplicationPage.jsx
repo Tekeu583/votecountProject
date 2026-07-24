@@ -164,6 +164,27 @@ const CandidateApplicationPage = () => {
         setTouched(prev => ({ ...prev, [field]: true }));
         const error = validateField(field, formData[field]);
         setErrors(prev => ({ ...prev, [field]: error }));
+
+        // Si l'email est valide, vérifier si une candidature existe déjà pour
+        // cette élection → affiche l'écran de suivi (pending/approved/rejected)
+        // plutôt que de laisser le candidat resoumettre inutilement.
+        if (field === 'email' && !error && electionUuid && formData.email?.trim()) {
+            candidateApplicationsApi.checkStatus(electionUuid, formData.email.trim())
+                .then((res) => {
+                    const data = res.data?.data ?? res.data;
+                    if (data?.status) {
+                        setExistingApplication({
+                            application_status: data.status,
+                            rejection_reason: data.rejection_reason,
+                            submitted_at: data.submitted_at,
+                            reviewed_at: data.reviewed_at,
+                        });
+                    }
+                })
+                .catch(() => {
+                    // 404 = aucune candidature existante → comportement normal, on ignore.
+                });
+        }
     };
 
     const handleSubmit = async (e) => {

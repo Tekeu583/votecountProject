@@ -23,11 +23,15 @@ class CandidateApplicationResource extends JsonResource
             'slogan' => $this->slogan,
             'bio' => $this->bio,
             'application_status' => $this->application_status,
-            'status_label' => $this->getStatusLabel(),
+            'status_label' => $this->status_label,
             'rejection_reason' => $this->rejection_reason,
             'submitted_at' => $this->created_at?->toIso8601String(),
             'approved_at' => $this->approved_at?->toIso8601String(),
             'rejected_at' => $this->rejected_at?->toIso8601String(),
+            'election' => $this->whenLoaded('election', fn () => [
+                'uuid' => $this->election->uuid,
+                'title' => $this->election->title,
+            ]),
         ];
     }
 }

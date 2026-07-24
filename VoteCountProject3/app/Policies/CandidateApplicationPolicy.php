@@ -31,13 +31,15 @@ class CandidateApplicationPolicy
 
     public function approve(User $user, CandidateApplication $application): bool
     {
-        $election = $application->election;
-        return $user->canAccessElection($election) && $user->can('manage candidates');
+        // Réutilise ElectionPolicy::manageCandidates (créateur / propriétaire
+        // d'organisation / rôle pivot manager). L'ancienne version dépendait
+        // de la permission 'manage candidates' qui n'existe pas dans le
+        // seeder → seul le super_admin pouvait approuver (bug bloquant).
+        return $user->can('manageCandidates', $application->election);
     }
 
     public function reject(User $user, CandidateApplication $application): bool
     {
-        $election = $application->election;
-        return $user->canAccessElection($election) && $user->can('manage candidates');
+        return $user->can('manageCandidates', $application->election);
     }
 }

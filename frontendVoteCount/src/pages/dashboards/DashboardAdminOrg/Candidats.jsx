@@ -1,18 +1,18 @@
 // pages/dashboards/DashboardAdminOrg/Candidats.jsx
 import {
   Search, Plus, Trash2, User, ChevronLeft, ChevronRight,
-  Upload, X, CheckCircle, XCircle, Clock, Loader2, RefreshCw,
+  Upload, CheckCircle, XCircle, Clock, RefreshCw, Inbox, Users as UsersIcon,
 } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { useDebounce } from '@hooks/useDebounce';
 import toast from 'react-hot-toast';
 import CandidatModal from './CandidatModal';
 import TextInput from '@components/ui/TextInput';
-import { candidatesApi, electionsApi, organizationsApi } from '@services/api';
+import { candidatesApi, candidateApplicationsApi, electionsApi, organizationsApi } from '@services/api';
 import { useOrg } from '@hooks/useOrg';
 import { FadeLoader } from 'react-spinners';
 
-// Badge statut candidat
+// Badge statut (candidat.status ET candidature.application_status : mêmes clés)
 const StatusBadge = ({ status }) => {
   const map = {
     approved: { label: 'Approuvé', cls: 'bg-green-100 text-green-700', icon: <CheckCircle size={11} /> },
@@ -32,15 +32,18 @@ const PER_PAGE = 15;
 export default function Candidats() {
   const { org } = useOrg();
 
+  // Onglet actif : 'candidates' (candidats en lice) | 'applications' (candidatures publiques reçues)
+  const [activeTab, setActiveTab] = useState('candidates');
+
   // -- États ----------------------------------------------------
   const [candidates, setCandidates] = useState([]);
+  const [applications, setApplications] = useState([]);
   const [elections, setElections] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingElec, setLoadingElec] = useState(true);
 
-  // Filtres
+  // Filtres (partagés entre les deux onglets)
   const [searchTerm, setSearchTerm] = useState('');
-
   const debouncedSearch = useDebounce(searchTerm, 400);
   const [statusFilter, setStatusFilter] = useState('all');
   const [electionFilter, setElectionFilter] = useState('all');
@@ -50,7 +53,7 @@ export default function Candidats() {
   const [lastPage, setLastPage] = useState(1);
   const [total, setTotal] = useState(0);
 
-  // Modal
+  // Modal (ajout/édition de candidat)
   const [openModal, setOpenModal] = useState(false);
   const [selected, setSelected] = useState(null);
 
@@ -61,7 +64,6 @@ export default function Candidats() {
       try {
         const res = await electionsApi.getAll({ organization_uuid: org.uuid, per_page: 100 });
         setElections(res.data?.data ?? []);
-
       } catch {
         toast.error('Impossible de charger les élections.');
       } finally {
@@ -71,48 +73,57 @@ export default function Candidats() {
     fetch();
   }, [org?.uuid]);
 
-
-  const loadCandidates = useCallback(async (p = 1) => {
+  // -- Chargement selon l'onglet actif --------------------------
+  const loadData = useCallback(async (p = 1) => {
     if (!org?.uuid) return;
 
     setLoading(true);
-    try {
-      const res = await organizationsApi.getCandidates(org.uuid, {
-        status: statusFilter !== 'all' ? statusFilter : undefined,
-        election_uuid: electionFilter !== 'all' ? electionFilter : undefined,
-        search: debouncedSearch || undefined,
-        page: p,
-        per_page: PER_PAGE,
-      });
+    const params = {
+      status: statusFilter !== 'all' ? statusFilter : undefined,
+      election_uuid: electionFilter !== 'all' ? electionFilter : undefined,
+      search: debouncedSearch || undefined,
+      page: p,
+      per_page: PER_PAGE,
+    };
 
-      setCandidates(res.data?.data ?? []);
-      setTotal(res.data?.meta?.total ?? 0);
-      setLastPage(res.data?.meta?.last_page ?? 1);
+    try {
+      if (activeTab === 'applications') {
+        const res = await organizationsApi.getApplications(org.uuid, params);
+        setApplications(res.data?.data ?? []);
+        setTotal(res.data?.meta?.total ?? 0);
+        setLastPage(res.data?.meta?.last_page ?? 1);
+      } else {
+        const res = await organizationsApi.getCandidates(org.uuid, params);
+        setCandidates(res.data?.data ?? []);
+        setTotal(res.data?.meta?.total ?? 0);
+        setLastPage(res.data?.meta?.last_page ?? 1);
+      }
     } catch (err) {
       toast.error(err.response?.data?.message ?? 'Erreur de chargement.');
-      setCandidates([]);
+      if (activeTab === 'applications') setApplications([]);
+      else setCandidates([]);
     } finally {
       setLoading(false);
     }
-  }, [org?.uuid, electionFilter, statusFilter, debouncedSearch]);
+  }, [org?.uuid, activeTab, electionFilter, statusFilter, debouncedSearch]);
 
   useEffect(() => {
     if (!org?.uuid) return;
     setPage(1);
-    loadCandidates(1);
-  }, [org?.uuid, electionFilter, statusFilter, debouncedSearch, loadCandidates]);
+    loadData(1);
+  }, [org?.uuid, activeTab, electionFilter, statusFilter, debouncedSearch, loadData]);
 
   useEffect(() => {
-    if (!electionFilter || page === 1) return;
-    loadCandidates(page);
-  }, [page, loadCandidates, electionFilter]);
+    if (page === 1) return;
+    loadData(page);
+  }, [page, loadData]);
 
-  // -- Actions --------------------------------------------------
+  // -- Actions candidats ----------------------------------------
   const handleApprove = async (candidate) => {
     try {
       await candidatesApi.approve(candidate.uuid);
       toast.success(`${candidate.full_name} approuvé.`);
-      loadCandidates(page);
+      loadData(page);
     } catch (err) {
       toast.error(err.response?.data?.message ?? 'Erreur lors de l\'approbation.');
     }
@@ -123,7 +134,7 @@ export default function Candidats() {
     try {
       await candidatesApi.reject(candidate.uuid, reason);
       toast.success(`${candidate.full_name} rejeté.`);
-      loadCandidates(page);
+      loadData(page);
     } catch (err) {
       toast.error(err.response?.data?.message ?? 'Erreur lors du rejet.');
     }
@@ -134,9 +145,33 @@ export default function Candidats() {
     try {
       await candidatesApi.delete(candidate.election?.uuid, candidate.uuid);
       toast.success('Candidat supprimé.');
-      loadCandidates(page);
+      loadData(page);
     } catch (err) {
       toast.error(err.response?.data?.message ?? 'Erreur lors de la suppression.');
+    }
+  };
+
+  // -- Actions candidatures publiques ---------------------------
+  const handleApproveApplication = async (app) => {
+    if (!window.confirm(`Approuver la candidature de ${app.full_name} ? Un candidat sera créé pour l'élection concernée.`)) return;
+    try {
+      await candidateApplicationsApi.approve(app.election?.uuid, app.uuid);
+      toast.success(`Candidature de ${app.full_name} approuvée — candidat créé.`);
+      loadData(page);
+    } catch (err) {
+      toast.error(err.response?.data?.message ?? 'Erreur lors de l\'approbation.');
+    }
+  };
+
+  const handleRejectApplication = async (app) => {
+    const reason = window.prompt('Raison du rejet (communiquée au candidat) :');
+    if (reason === null) return; // annulé
+    try {
+      await candidateApplicationsApi.reject(app.election?.uuid, app.uuid, reason);
+      toast.success(`Candidature de ${app.full_name} rejetée.`);
+      loadData(page);
+    } catch (err) {
+      toast.error(err.response?.data?.message ?? 'Erreur lors du rejet.');
     }
   };
 
@@ -155,7 +190,7 @@ export default function Candidats() {
       try {
         await candidatesApi.import(electionFilter, file);
         toast.success('Import réussi !', { id: toastId });
-        loadCandidates(1);
+        loadData(1);
       } catch (err) {
         toast.error(err.response?.data?.message ?? 'Erreur d\'import.', { id: toastId });
       }
@@ -170,37 +205,62 @@ export default function Candidats() {
     setPage(1);
   };
 
+  const isApplications = activeTab === 'applications';
+
   // -- Rendu ----------------------------------------------------─
   return (
     <div className="p-2 space-y-6">
 
       {/* HEADER */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>
           <h1 className="text-2xl md:text-3xl font-semibold text-[var(--color-dark)]">
             Gestion des Candidats
           </h1>
           <p className="text-sm text-[var(--color-gray)] mt-1">
-            {total} candidat{total > 1 ? 's' : ''} au total
+            {total} {isApplications ? `candidature${total > 1 ? 's' : ''} reçue${total > 1 ? 's' : ''}` : `candidat${total > 1 ? 's' : ''}`} au total
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-          <button
-            onClick={handleImport}
-            className="flex items-center max-h-12 justify-center gap-2 px-5 py-3 bg-[var(--color-white)] border border-[var(--color-gray-light)] rounded-xl hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors font-medium whitespace-nowrap"
-          >
-            <Upload size={16} />
-            <span className="hidden sm:inline">Importer CSV/Excel</span>
-            <span className="sm:hidden">Importer</span>
-          </button>
-          <button
-            onClick={() => { setSelected(null); setOpenModal(true); }}
-            disabled={loadingElec || elections.length === 0}
-            className="btn-primary flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-medium w-full sm:w-auto whitespace-nowrap disabled:opacity-50"
-          >
-            <Plus size={18} /> Ajouter un candidat
-          </button>
-        </div>
+        {/* Boutons ajout/import : uniquement pour les candidats en lice */}
+        {!isApplications && (
+          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+            <button
+              onClick={handleImport}
+              className="flex items-center max-h-12 justify-center gap-2 px-5 py-3 bg-[var(--color-white)] border border-[var(--color-gray-light)] rounded-xl hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors font-medium whitespace-nowrap"
+            >
+              <Upload size={16} />
+              <span className="hidden sm:inline">Importer CSV/Excel</span>
+              <span className="sm:hidden">Importer</span>
+            </button>
+            <button
+              onClick={() => { setSelected(null); setOpenModal(true); }}
+              disabled={loadingElec || elections.length === 0}
+              className="btn-primary flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-medium w-full sm:w-auto whitespace-nowrap disabled:opacity-50"
+            >
+              <Plus size={18} /> Ajouter un candidat
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ONGLETS */}
+      <div className="flex gap-1 border-b border-[var(--color-gray-light)]">
+        <button
+          onClick={() => setActiveTab('candidates')}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${!isApplications
+            ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+            : 'border-transparent text-[var(--color-gray)] hover:text-[var(--color-dark)]'}`}
+        >
+          <UsersIcon size={16} /> Candidats
+        </button>
+        <button
+          onClick={() => setActiveTab('applications')}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${isApplications
+            ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+            : 'border-transparent text-[var(--color-gray)] hover:text-[var(--color-dark)]'}`}
+        >
+          <Inbox size={16} /> Candidatures reçues
+        </button>
       </div>
 
       {/* FILTRES */}
@@ -210,11 +270,10 @@ export default function Candidats() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             iconLeft={Search}
-            placeholder="Rechercher un candidat..."
+            placeholder={isApplications ? 'Rechercher une candidature...' : 'Rechercher un candidat...'}
           />
         </div>
 
-        {/* Filtre par élection */}
         <select
           value={electionFilter}
           onChange={(e) => setElectionFilter(e.target.value)}
@@ -227,7 +286,6 @@ export default function Candidats() {
           ))}
         </select>
 
-        {/* Filtre par statut */}
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -251,30 +309,106 @@ export default function Candidats() {
       {/* TABLE */}
       <div className="bg-[var(--color-white)] rounded-[var(--radius-md)] shadow-[var(--shadow-md)] overflow-x-auto">
         {(() => {
-
           if (loadingElec || loading) {
             return (
-              <div className="flex items-center justify-center">
+              <div className="flex items-center justify-center py-16">
                 <FadeLoader color="#1e40af" size={48} cssOverride={{ display: "block", margin: "0 auto", }} />
               </div>
             );
           }
-          if (candidates.length === 0) {
+
+          const list = isApplications ? applications : candidates;
+          if (list.length === 0) {
             return (
               <div className="text-center py-16 text-[var(--color-gray)]">
                 {electionFilter === 'all' && elections.length === 0
                   ? 'Aucune élection trouvée pour cette organisation.'
-                  : 'Aucun candidat trouvé pour ces critères.'}
+                  : isApplications
+                    ? 'Aucune candidature reçue pour ces critères.'
+                    : 'Aucun candidat trouvé pour ces critères.'}
               </div>
             );
           }
+
+          // -- Table des CANDIDATURES REÇUES --
+          if (isApplications) {
+            return (
+              <table className="w-full text-sm min-w-[700px]">
+                <thead className="bg-[var(--color-gray-light)] text-xs uppercase">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Candidat</th>
+                    <th className="px-4 py-3 text-left">Élection</th>
+                    <th className="px-4 py-3 text-left hidden md:table-cell">Soumise le</th>
+                    <th className="px-4 py-3 text-left">Statut</th>
+                    <th className="px-4 py-3 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {applications.map((a) => (
+                    <tr key={a.uuid} className="border-t border-[var(--color-gray-light)] hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          {a.photo ? (
+                            <img src={a.photo} alt={a.full_name} className="w-8 h-8 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                              <User size={14} />
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-medium text-[var(--color-dark)]">{a.full_name}</p>
+                            <p className="text-xs text-[var(--color-gray)]">{a.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-[var(--color-gray)]">{a.election?.title ?? '—'}</td>
+                      <td className="px-4 py-3 text-[var(--color-gray)] hidden md:table-cell">
+                        {a.submitted_at ? new Date(a.submitted_at).toLocaleDateString('fr-FR') : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={a.application_status} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-center gap-2">
+                          {a.application_status === 'pending' ? (
+                            <>
+                              <button
+                                onClick={() => handleApproveApplication(a)}
+                                title="Approuver — crée le candidat"
+                                className="p-1.5 rounded text-green-600 hover:bg-green-50 transition"
+                              >
+                                <CheckCircle size={15} />
+                              </button>
+                              <button
+                                onClick={() => handleRejectApplication(a)}
+                                title="Rejeter"
+                                className="p-1.5 rounded text-red-500 hover:bg-red-50 transition"
+                              >
+                                <XCircle size={15} />
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-xs text-[var(--color-gray)] italic">
+                              {a.application_status === 'approved' ? 'Traitée' : 'Rejetée'}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            );
+          }
+
+          // -- Table des CANDIDATS en lice --
           return (
             <table className="w-full text-sm min-w-[700px]">
               <thead className="bg-[var(--color-gray-light)] text-xs uppercase">
                 <tr>
                   <th className="px-4 py-3 text-left">Candidat</th>
                   <th className="px-4 py-3 text-left">Élection</th>
-                  <th className="px-4 py-3 text-left hidden md:table-cell">Candidature</th>
+                  <th className="px-4 py-3 text-left hidden md:table-cell">Ajouté le</th>
                   <th className="px-4 py-3 text-left">Statut</th>
                   <th className="px-4 py-3 text-center">Actions</th>
                 </tr>
@@ -306,7 +440,6 @@ export default function Candidats() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">
-                        {/* Approuver */}
                         {c.status === 'pending' && (
                           <button
                             onClick={() => handleApprove(c)}
@@ -316,7 +449,6 @@ export default function Candidats() {
                             <CheckCircle size={15} />
                           </button>
                         )}
-                        {/* Rejeter */}
                         {c.status === 'pending' && (
                           <button
                             onClick={() => handleReject(c)}
@@ -326,7 +458,6 @@ export default function Candidats() {
                             <XCircle size={15} />
                           </button>
                         )}
-                        {/* Modifier */}
                         <button
                           onClick={() => { setSelected(c); setOpenModal(true); }}
                           title="Modifier"
@@ -334,7 +465,6 @@ export default function Candidats() {
                         >
                           Éditer
                         </button>
-                        {/* Supprimer */}
                         <button
                           onClick={() => handleDelete(c)}
                           title="Supprimer"
@@ -348,7 +478,7 @@ export default function Candidats() {
                 ))}
               </tbody>
             </table>
-          )
+          );
         })()}
       </div>
 
@@ -385,7 +515,7 @@ export default function Candidats() {
           onClose={() => setOpenModal(false)}
           onSuccess={() => {
             setOpenModal(false);
-            loadCandidates(page);
+            loadData(page);
           }}
         />
       )}

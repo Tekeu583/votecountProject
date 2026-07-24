@@ -117,6 +117,18 @@ export const organizationsApi = {
         api.get(`${V1}/organizations/${orgUuid}/candidates`, { params }),
 
     /**
+     * GET /api/v1/organizations/{organization}/candidate-applications
+     *
+     * Candidatures publiques reçues (à approuver/rejeter), toutes élections de
+     * l'organisation confondues. Distinct de getCandidates (candidats en lice).
+     *
+     * @param {string} orgUuid
+     * @param {Object} params - { page, per_page, search, status, election_uuid }
+     */
+    getApplications: (orgUuid, params = {}) =>
+        api.get(`${V1}/organizations/${orgUuid}/candidate-applications`, { params }),
+
+    /**
      * GET /api/v1/organizations/{organization}/electors
      *
      * Endpoint consolidé : tous les électeurs d'une organisation en une

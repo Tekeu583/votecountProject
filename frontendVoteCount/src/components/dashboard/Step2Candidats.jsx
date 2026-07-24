@@ -80,9 +80,9 @@ const Step2Candidats = ({ onNext, onPrevious, initialData = [], electionUuid = n
     const [pendingServerFile, setPendingServerFile] = useState(null);
     const [showServerSuggestion, setShowServerSuggestion] = useState(false);
     const [serverImportJobId, setServerImportJobId] = useState(null);
-    const [serverImportStatus, setServerImportStatus] = useState(null); // pending|processing|completed|failed
-    const [serverImportProgress, setServerImportProgress] = useState(0); // upload %
-    const [serverImportResult, setServerImportResult] = useState(null); // { total_rows, success_rows, failed_rows, errors }
+    const [serverImportStatus, setServerImportStatus] = useState(null);
+    const [serverImportProgress, setServerImportProgress] = useState(0);
+    const [serverImportResult, setServerImportResult] = useState(null);
     const pollIntervalRef = useRef(null);
 
     // Sous-étape catégories : 'categories' | 'candidats'
@@ -997,7 +997,9 @@ const Step2Candidats = ({ onNext, onPrevious, initialData = [], electionUuid = n
                                 <h2 className="text-xl font-semibold">
                                     Candidats ({candidats.length})
                                 </h2>
-                                <p className="text-sm text-[var(--color-gray)]">Minimum : 2</p>
+                                <p className="text-sm text-[var(--color-gray)]">
+                                    {AcceptCandidature ? 'Optionnel (candidatures ouvertes)' : 'Minimum : 2'}
+                                </p>
                             </div>
 
                             <div className="space-y-4 max-h-[520px] overflow-y-auto pr-2">
@@ -1044,7 +1046,9 @@ const Step2Candidats = ({ onNext, onPrevious, initialData = [], electionUuid = n
                                     </div>
                                 )) : (
                                     <div className="text-center py-12 text-[var(--color-gray)]">
-                                        Aucun candidat ajouté pour le moment
+                                        {AcceptCandidature
+                                            ? 'Aucun candidat ajouté. Les candidats s\'inscriront eux-mêmes via la page de candidature — vous pourrez passer à l\'étape suivante.'
+                                            : 'Aucun candidat ajouté pour le moment'}
                                     </div>
                                 )}
                             </div>
@@ -1058,7 +1062,7 @@ const Step2Candidats = ({ onNext, onPrevious, initialData = [], electionUuid = n
                         </button>
                         <button
                             onClick={handleNext}
-                            disabled={candidats.length < 2 || submittingCandidats}
+                            disabled={(candidats.length < 2 && !AcceptCandidature) || submittingCandidats}
                             className="flex items-center gap-2 btn-primary font-medium disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                         >
                             {submittingCandidats ? (

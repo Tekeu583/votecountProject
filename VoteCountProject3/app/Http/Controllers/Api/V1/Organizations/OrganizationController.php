@@ -6,10 +6,12 @@ use App\Enums\ElectionStatus;
 use App\Http\Controllers\Api\V1\BaseApiController;
 use App\Http\Requests\Api\V1\Organizations\CreateOrganizationRequest;
 use App\Http\Requests\Api\V1\Organizations\UpdateOrganizationRequest;
+use App\Http\Resources\Api\V1\CandidateApplicationResource;
 use App\Http\Resources\Api\V1\CandidateResource;
 use App\Http\Resources\Api\V1\ElectorResource;
 use App\Http\Resources\Api\V1\OrganizationResource;
 use App\Models\Candidate;
+use App\Models\CandidateApplication;
 use App\Models\Election;
 use App\Models\Elector;
 use App\Models\Organization;
@@ -128,6 +130,50 @@ class OrganizationController extends BaseApiController
         });
 
         return $this->paginated($candidates, CandidateResource::class);
+    }
+
+    /**
+     * GET /api/v1/organizations/{organization}/candidate-applications
+     *
+     * Candidatures publiques reçues (table candidate_applications) pour TOUTES
+     * les élections de l'organisation — la file d'attente que l'admin doit
+     * approuver/rejeter. Distincte de getCandidates() (table candidates, les
+     * candidats déjà en lice). Filtrable par statut, élection, recherche.
+     */
+    public function getApplications(Organization $organization, Request $request): JsonResponse
+    {
+        $user = Auth::user();
+        $isMember = $organization->users()->where('users.id', $user->id)->exists()
+            || $organization->owner_user_id === $user->id;
+
+        if (! $isMember && ! $user->hasRole('super_admin')) {
+            return $this->forbidden('Accès non autorisé à cette organisation');
+        }
+
+        $query = CandidateApplication::query()
+            ->whereHas('election', fn ($q) => $q->where('organization_id', $organization->id))
+            ->with(['election:id,uuid,title']);
+
+        if ($request->filled('status')) {
+            $query->where('application_status', $request->status);
+        }
+
+        if ($request->filled('election_uuid')) {
+            $query->whereHas('election', fn ($q) => $q->where('uuid', $request->election_uuid));
+        }
+
+        if ($request->filled('search')) {
+            $term = '%' . $request->search . '%';
+            $query->where(fn ($q) => $q->where('first_name', 'ilike', $term)
+                ->orWhere('last_name', 'ilike', $term)
+                ->orWhere('email', 'ilike', $term));
+        }
+
+        $applications = $query
+            ->orderBy('created_at', 'desc')
+            ->paginate($request->integer('per_page', 15));
+
+        return $this->paginated($applications, CandidateApplicationResource::class);
     }
 
     /**
