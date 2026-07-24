@@ -31,9 +31,16 @@ jobs:
 
             cd ~/apps/votecount
 
+            echo "→ Reprise temporaire des permissions pour git..."
+            sudo chown -R arsene:arsene VoteCountProject3/storage VoteCountProject3/bootstrap/cache 2>/dev/null || true
+
             echo "→ Récupération de la dernière version..."
             git fetch origin main
             git reset --hard origin/main
+
+            echo "→ Restauration des permissions www-data..."
+            sudo chown -R 33:33 VoteCountProject3/storage VoteCountProject3/bootstrap/cache
+            sudo chmod -R 775 VoteCountProject3/storage VoteCountProject3/bootstrap/cache
 
             echo "→ Rebuild des images Docker..."
             docker compose up -d --build
