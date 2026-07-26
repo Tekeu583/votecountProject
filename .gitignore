@@ -43,6 +43,9 @@ Thumbs.db
 # Claude / autres tools
 .claude/
 
+# Backups base de données (contiennent des données personnelles / votes — jamais dans Git)
+backups/
+
 # Logs
 *.log
 npm-debug.log*

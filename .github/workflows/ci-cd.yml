@@ -141,6 +141,10 @@ jobs:
             echo "→ Attente que le backend soit prêt (30s)..."
             sleep 30
 
+            echo "→ Sauvegarde de la base AVANT migration (rollback possible)..."
+            chmod +x scripts/backup-db.sh
+            ./scripts/backup-db.sh predeploy 7
+
             echo "→ Exécution des migrations..."
             docker compose exec -T backend php artisan migrate --force
 
