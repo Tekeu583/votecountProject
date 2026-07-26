@@ -28,6 +28,11 @@ class AuthenticationException extends CustomException
         return new self('Compte suspendu', 403);
     }
 
+    public static function accountBanned(): self
+    {
+        return new self('Compte banni', 403);
+    }
+
     public static function tooManyAttempts(int $seconds): self
     {
         return new self("Trop de tentatives. Réessayez dans {$seconds} secondes", 429);

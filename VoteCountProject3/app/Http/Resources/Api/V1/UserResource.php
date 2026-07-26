@@ -24,6 +24,8 @@ class UserResource extends JsonResource
             'timezone' => $this->timezone,
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
+            'suspended_at' => $this->suspended_at?->toIso8601String(),
+            'suspension_reason' => $this->suspension_reason,
             'email_verified' => $this->is_email_verified,
             'phone_verified' => $this->is_phone_verified,
             'two_factor_enabled' => $this->two_factor_enabled,

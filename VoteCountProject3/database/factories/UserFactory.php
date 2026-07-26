@@ -25,6 +25,8 @@ class UserFactory extends Factory
             'country' => $this->faker->country(),
             'city' => $this->faker->city(),
             'status' => 'active',
+            'suspended_at' => null,
+            'suspension_reason' => null,
             'email_verified_at' => now(),
             'phone_verified_at' => null,
             'last_login_at' => null,

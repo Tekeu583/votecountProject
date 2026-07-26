@@ -93,6 +93,7 @@ return Application::configure(basePath: dirname(__DIR__))
             // Tes middlewares personnalisés
             'tenant' => TenantMiddleware::class,
             'election.access' => ElectionAccessMiddleware::class,
+            'active' => \App\Http\Middleware\EnsureUserIsActive::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

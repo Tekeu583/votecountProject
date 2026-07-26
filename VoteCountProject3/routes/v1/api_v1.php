@@ -136,7 +136,7 @@ Route::get('subscription-plans', [SubscriptionPlanController::class, 'index']);
 Route::get('subscription-plans/{subscriptionPlan}', [SubscriptionPlanController::class, 'show']);
 
 // ========== ROUTES PROTÉGÉES (SESSION REQUISE) ==========
-Route::middleware(['auth:sanctum'])->group(function () {
+Route::middleware(['auth:sanctum', 'active'])->group(function () {
     // Auth
     Route::prefix('auth')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
@@ -152,8 +152,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::apiResource('subscription-plans', SubscriptionPlanController::class)->except(['index', 'show']);
     Route::post('subscription-plans/{subscriptionPlan}/toggle-status', [SubscriptionPlanController::class, 'toggleStatus']);
 
-    // Users Management (CRUD + Stats + Export)
-    Route::prefix('users')->group(function () {
+    // Users Management (CRUD + Stats + Export) — réservé au super_admin :
+    // gestion des comptes de toute la plateforme (pages DashboardSuperAdmin).
+    Route::prefix('users')->middleware('role:super_admin')->group(function () {
         Route::get('/stats', [UserController::class, 'stats']);
         Route::get('/export', [UserController::class, 'export']);
         Route::get('/', [UserController::class, 'index']);
@@ -161,6 +162,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/{user}', [UserController::class, 'show']);
         Route::put('/{user}', [UserController::class, 'update']);
         Route::delete('/{user}', [UserController::class, 'destroy']);
+        Route::post('/{user}/suspend', [UserController::class, 'suspend']);
+        Route::post('/{user}/activate', [UserController::class, 'activate']);
     });
 
     // Organizations (CRUD)

@@ -10,6 +10,8 @@ import {
   RefreshCw,
   AlertCircle,
   Loader,
+  Ban,
+  CheckCircle,
 } from 'lucide-react';
 
 import { useState } from 'react';
@@ -140,6 +142,28 @@ export default function Users() {
       } catch (err) {
         toast.error(err.response?.data?.message || 'Erreur lors de la suppression');
       }
+    }
+  };
+
+  const handleSuspend = async (u) => {
+    const reason = window.prompt(`Motif de la suspension de ${u.full_name ?? u.email} (optionnel) :`);
+    if (reason === null) return; // annulé
+    try {
+      await usersApi.suspend(u.uuid, reason || undefined);
+      toast.success('Compte suspendu');
+      refresh();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur lors de la suspension');
+    }
+  };
+
+  const handleActivate = async (u) => {
+    try {
+      await usersApi.activate(u.uuid);
+      toast.success('Compte réactivé');
+      refresh();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur lors de la réactivation');
     }
   };
 
@@ -428,6 +452,23 @@ export default function Users() {
                         >
                           <Pencil size={16} className="text-blue-600" />
                         </button>
+                        {u.status === 'suspended' || u.status === 'banned' ? (
+                          <button
+                            onClick={() => handleActivate(u)}
+                            className="p-1 hover:bg-green-100 rounded transition-colors"
+                            title="Réactiver le compte"
+                          >
+                            <CheckCircle size={16} className="text-green-600" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleSuspend(u)}
+                            className="p-1 hover:bg-amber-100 rounded transition-colors"
+                            title="Suspendre le compte"
+                          >
+                            <Ban size={16} className="text-amber-600" />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleDelete(u.uuid)}
                           className="p-1 hover:bg-red-100 rounded transition-colors"

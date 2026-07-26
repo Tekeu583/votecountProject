@@ -29,10 +29,6 @@ class UserController extends BaseApiController
             $search = $request->get('search');
             $role = $request->get('role');
             $status = $request->get('status');
-
-            // Construire la requête
-            // mediaFiles/notifications retirés : non exposés par UserResource,
-            // chargés pour rien sur toute la liste.
             $query = User::with([
                 'roles',
                 'organizations',
@@ -60,12 +56,6 @@ class UserController extends BaseApiController
 
             // Pagination
             $paginated = $query->orderBy('created_at', 'desc')->paginate($limit, ['*'], 'page', $page);
-
-            // Sérialisation brute des modèles (avant) omettait full_name (un
-            // accesseur, jamais dans $appends), renvoyait 'photo' en chemin
-            // relatif (pas l'URL complète) et 'roles' en objets Spatie complets
-            // au lieu de simples noms — cassait l'affichage de ces 3 colonnes
-            // sur Users.jsx/AdminsPage.jsx. UserResource gère déjà tout ça.
             $users = UserResource::collection($paginated->items())->resolve();
 
             return response()->json([
@@ -143,7 +133,7 @@ class UserController extends BaseApiController
     public function show($id)
     {
         try {
-            $user = User::findOrFail($id);
+            $user = User::where('uuid', $id)->firstOrFail();
 
             return response()->json([
                 'success' => true,
@@ -231,7 +221,7 @@ class UserController extends BaseApiController
     public function update(Request $request, $id)
     {
         try {
-            $user = User::findOrFail($id);
+            $user = User::where('uuid', $id)->firstOrFail();
 
             // Validation
             $validated = $request->validate([
@@ -295,7 +285,7 @@ class UserController extends BaseApiController
     public function destroy($id)
     {
         try {
-            $user = User::findOrFail($id);
+            $user = User::where('uuid', $id)->firstOrFail();
 
             // Soft delete
             $user->delete();
@@ -317,6 +307,47 @@ class UserController extends BaseApiController
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Suspend un compte (super_admin uniquement — protégé par la route).
+     * POST /api/v1/users/{user}/suspend
+     */
+    public function suspend(Request $request, User $user)
+    {
+        if ($user->id === $request->user()->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vous ne pouvez pas suspendre votre propre compte.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'reason' => 'nullable|string|max:255',
+        ]);
+
+        $user->suspend($validated['reason'] ?? null);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Compte suspendu avec succès',
+            'data' => new UserResource($user->fresh()),
+        ], 200);
+    }
+
+    /**
+     * Réactive un compte suspendu/banni (super_admin uniquement).
+     * POST /api/v1/users/{user}/activate
+     */
+    public function activate(User $user)
+    {
+        $user->activate();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Compte réactivé avec succès',
+            'data' => new UserResource($user->fresh()),
+        ], 200);
     }
 
     /**

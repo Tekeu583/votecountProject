@@ -58,6 +58,20 @@ export const usersApi = {
         api.delete(`${V1}/users/${userId}`),
 
     /**
+     * POST /api/v1/users/{user}/suspend — réservé au super_admin.
+     * @param {string} userId - uuid
+     * @param {string} [reason] - motif de la suspension
+     */
+    suspend: (userId, reason) =>
+        api.post(`${V1}/users/${userId}/suspend`, { reason }),
+
+    /**
+     * POST /api/v1/users/{user}/activate — réservé au super_admin.
+     */
+    activate: (userId) =>
+        api.post(`${V1}/users/${userId}/activate`),
+
+    /**
      * GET /api/v1/users/export
      * Exporte les utilisateurs (Blob).
      * @param {Object} filters - { search, role, status }

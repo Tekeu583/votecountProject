@@ -118,6 +118,12 @@ class AuthController extends BaseApiController
             throw AuthenticationException::accountSuspended();
         }
 
+        if ($user->status->value === 'banned') {
+            Auth::logout();
+            $this->logFailedLoginAttempt($request->email, $clientIp, 'account_banned');
+            throw AuthenticationException::accountBanned();
+        }
+
         // Regenerate session to prevent session fixation
         $request->session()->regenerate();
 

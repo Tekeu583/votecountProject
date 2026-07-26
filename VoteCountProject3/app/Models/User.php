@@ -38,6 +38,8 @@ class User extends Authenticatable
         'locale',
         'timezone',
         'status',
+        'suspended_at',
+        'suspension_reason',
         'email_verified_at',
         'phone_verified_at',
         'two_factor_enabled',
@@ -65,6 +67,7 @@ class User extends Authenticatable
         'birth_date' => 'date',
         'two_factor_enabled' => 'boolean',
         'status' => UserStatus::class,
+        'suspended_at' => 'datetime',
         'deleted_at' => 'datetime',
         'scheduled_permanent_delete_at' => 'datetime',
     ];
@@ -256,6 +259,38 @@ class User extends Authenticatable
     public function isSuperAdmin(): bool
     {
         return $this->hasRole('super_admin');
+    }
+
+    /**
+     * Compte bloqué (suspendu ou banni) : ni connexion ni accès en session.
+     */
+    public function isBlocked(): bool
+    {
+        return in_array($this->status, [UserStatus::SUSPENDED, UserStatus::BANNED], true);
+    }
+
+    /**
+     * Suspend le compte avec un motif traçable.
+     */
+    public function suspend(?string $reason = null): void
+    {
+        $this->forceFill([
+            'status' => UserStatus::SUSPENDED,
+            'suspended_at' => now(),
+            'suspension_reason' => $reason,
+        ])->save();
+    }
+
+    /**
+     * Réactive le compte (efface le motif et la date de suspension).
+     */
+    public function activate(): void
+    {
+        $this->forceFill([
+            'status' => UserStatus::ACTIVE,
+            'suspended_at' => null,
+            'suspension_reason' => null,
+        ])->save();
     }
 
     public function isAdmin(): bool
