@@ -8,9 +8,9 @@ on:
 
 jobs:
 
-  # ═══════════════════════════════════════════════════════════════
+  # -------------------------------
   # JOB 1 : TESTS BACKEND
-  # ═══════════════════════════════════════════════════════════════
+  # -------------------------------
   tests:
     name: Tests Backend (Laravel + PostgreSQL + Redis)
     runs-on: ubuntu-latest
@@ -93,9 +93,9 @@ jobs:
         working-directory: VoteCountProject3
         run: php artisan test
 
-  # ═══════════════════════════════════════════════════════════════
+  # -------------------------------
   # JOB 2 : DÉPLOIEMENT (uniquement sur main, uniquement si tests OK)
-  # ═══════════════════════════════════════════════════════════════
+  # -------------------------------
   deploy:
     name: Déploiement sur VPS Contabo
     runs-on: ubuntu-latest
@@ -151,6 +151,10 @@ jobs:
             echo "→ Rafraîchissement des caches..."
             docker compose exec -T backend php artisan optimize:clear
             docker compose exec -T backend php artisan config:cache
+
+            echo "→ Vérification/installation du cron de backup quotidien (idempotent)..."
+            chmod +x scripts/*.sh
+            ./scripts/setup-backup-cron.sh || echo "⚠ cron non installé (crontab absent ?) — backup pré-déploiement toujours actif"
 
             echo "→ Vérification de l'état des containers..."
             docker compose ps
