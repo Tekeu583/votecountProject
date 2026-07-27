@@ -231,8 +231,6 @@ export default function Sidebar({
     const menuConfig = getMenuConfigFromPath(location.pathname, role);
     const { menu } = menuConfig ?? { menu: [] };
 
-    // Dashboards accessibles par l'utilisateur — switcher visible dès qu'il
-    // y en a plus d'un (multi-rôles : ex. organization_owner + jury).
     const switchableRoles = getAvailableRoles(authUser).filter((r) => SWITCHABLE_ROLES.includes(r));
     const handleSwitchRole = (targetRole) => navigate(getDashboardRoute(targetRole));
 
@@ -249,7 +247,7 @@ export default function Sidebar({
         flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium
         transition-all duration-200 border-l-4 border-transparent
         ${isActive
-            ? 'border-l-[var(--color-primary)] bg-[var(--color-gray-dark)] text-[var(--color-primary)]'
+            ? 'border-l-[var(--color-primary)] bg-[var(--color-gray)] text-[var(--color-white)] font-bold'
             : 'text-[var(--color-gray-light)] hover:border-l-[var(--color-primary)] hover:bg-[var(--color-gray-dark)] hover:text-[var(--color-primary)]'
         }
     `;

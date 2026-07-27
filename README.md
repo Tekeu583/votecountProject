@@ -8,11 +8,11 @@ et tableaux de bord par rôle.
 
 **Backend**
 
-- Laravel 13 / PHP 8.3
+- Laravel 13 / PHP 8.3+ (image Docker/CI en PHP 8.4)
 - PostgreSQL (base de données)
-- Redis (cache, sessions)
+- Redis (cache, sessions, queue)
 - Laravel Reverb (WebSocket — résultats en temps réel)
-- Laravel Sanctum (authentification API)
+- Laravel Sanctum (authentification API — cookies de session, jamais de Bearer token)
 
 **Frontend**
 
@@ -41,26 +41,33 @@ Installez ces outils **avant** de commencer :
 | PostgreSQL | 14+              | `psql --version`      |
 | Redis      | 6+               | `redis-cli --version` |
 
-Extensions PHP requises (généralement incluses avec PHP 8.3) : `pdo_pgsql`, `mbstring`, `openssl`, `curl`, `json`, `bcmath`.
+Extensions PHP requises (généralement incluses avec PHP 8.3+) : `pdo_pgsql`, `mbstring`, `openssl`, `curl`, `json`, `bcmath`.
+
+> Vous pouvez éviter d'installer PostgreSQL/Redis/PHP en local en utilisant
+> **Docker** à la place — voir la section [Lancer avec Docker](#lancer-avec-docker).
 
 ---
 
 ## Structure du projet
 
 ```
-VoteCountProject/
-├── backend/          # API Laravel
-└── frontend/         # Application React
+votecountProject4/
+├── VoteCountProject3/   # API Laravel (backend)
+├── frontendVoteCount/   # Application React (frontend)
+├── scripts/             # Scripts de sauvegarde de la base de données
+├── docker-compose.yml   # Orchestration Docker (identique à la prod)
+└── .github/workflows/   # CI/CD (tests + déploiement)
 ```
 
-*(Adaptez les chemins ci-dessous si vos deux parties sont dans des dépôts séparés.)*
+C'est un **monorepo** : backend et frontend vivent dans le même dépôt Git,
+une seule branche `dev` est utilisée pour le développement.
 
 ---
 
 ## 1. Installation du backend
 
 ```bash
-cd backend
+cd VoteCountProject3
 composer install
 ```
 
@@ -71,74 +78,45 @@ cp .env.example .env
 php artisan key:generate
 ```
 
-Éditez `.env` et renseignez au minimum ces valeurs :
+`.env.example` contient déjà toutes les clés nécessaires avec des valeurs de
+développement raisonnables. Éditez au minimum :
+
+- `DB_PASSWORD` — le mot de passe de votre PostgreSQL local
+- `MAIL_USERNAME` / `MAIL_PASSWORD` — un compte SMTP de test (Gmail avec mot
+  de passe d'application, Mailtrap...) pour recevoir les OTP par email
+- `REVERB_APP_ID` / `REVERB_APP_KEY` / `REVERB_APP_SECRET` — n'importe
+  quelles valeurs, elles doivent juste être **identiques** côté frontend
+  (voir plus bas)
+
+Variables à connaître :
 
 ```dotenv
-APP_NAME=VoteCount
-APP_ENV=local
-APP_DEBUG=true
-APP_URL=http://localhost:8000
-FRONTEND_URL=http://localhost:5173
-
-# Base de données — créez d'abord la base PostgreSQL (voir étape suivante)
 DB_CONNECTION=pgsql
 DB_HOST=127.0.0.1
 DB_PORT=5432
-DB_DATABASE=votecount
+DB_DATABASE=votecountproject3
 DB_USERNAME=postgres
-DB_PASSWORD=votre_mot_de_passe
+DB_PASSWORD=ton_password
 
-# Cache / Session (Redis)
-CACHE_DRIVER=redis
-SESSION_DRIVER=redis
-REDIS_CLIENT=predis
-REDIS_HOST=127.0.0.1
-REDIS_PORT=6379
+# Queue — "redis" nécessite un worker séparé (voir étape 3), "sync" exécute
+# les jobs immédiatement sans worker (plus simple pour un premier essai)
+QUEUE_CONNECTION=redis
 
-# Queue — "sync" = exécution immédiate, pas besoin de worker séparé
-QUEUE_CONNECTION=sync
+# ⚠️ IMPORTANT — origine(s) autorisée(s) à se connecter au WebSocket.
+# Doit correspondre à l'URL du frontend (voir Dépannage si erreur
+# "Origin not allowed").
+REVERB_ALLOWED_ORIGINS=localhost,127.0.0.1
 
-# WebSocket (Reverb) — résultats en temps réel
-BROADCAST_CONNECTION=reverb
-REVERB_APP_ID=un_id_au_choix
-REVERB_APP_KEY=une_cle_au_choix
-REVERB_APP_SECRET=un_secret_au_choix
-REVERB_HOST=localhost
-REVERB_PORT=8082
-REVERB_SCHEME=http
-
-# ⚠️ IMPORTANT — origines autorisées à se connecter au WebSocket.
-# Doit correspondre EXACTEMENT à l'URL du frontend (voir section Dépannage
-# si vous obtenez une erreur "Origin not allowed").
-REVERB_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
-
-# Sanctum — domaines autorisés à s'authentifier via cookies
+# Sanctum — domaines autorisés à s'authentifier via cookies (JAMAIS de Bearer token)
 SANCTUM_STATEFUL_DOMAINS=localhost:5173,127.0.0.1:5173
-
-# Email (OTP, notifications) — un compte SMTP de test suffit (Gmail, Mailtrap...)
-MAIL_MAILER=smtp
-MAIL_HOST=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USERNAME=
-MAIL_PASSWORD=
-MAIL_FROM_ADDRESS=
-
-# CamPay (paiement Mobile Money) — voir section "Paiement CamPay" ci-dessous
-CAMPAY_ENABLED=true
-CAMPAY_BASE_URL=https://demo.campay.net/api
-CAMPAY_APP_ID=
-CAMPAY_USERNAME=
-CAMPAY_PASSWORD=
-CAMPAY_ACCESS_TOKEN=
-CAMPAY_WEBHOOK_SECRET=
 ```
 
 ### Base de données
 
-Créez la base PostgreSQL (adaptez le nom d'utilisateur si besoin) :
+Créez la base PostgreSQL (le nom doit correspondre à `DB_DATABASE` du `.env`) :
 
 ```bash
-createdb votecount
+createdb votecountproject3
 ```
 
 Puis lancez les migrations :
@@ -162,72 +140,151 @@ php artisan db:seed
 php artisan storage:link
 ```
 
-### Dépendance additionnelle — CamPay
-
-L'intégration CamPay valide la signature de ses webhooks via JWT. Installez la librairie requise :
-
-```bash
-composer require firebase/php-jwt
-```
+> Les dépendances de paiement (CamPay, Stripe, MTN/Orange Money) sont déjà
+> déclarées dans `composer.json` — `composer install` les installe, aucune
+> commande supplémentaire n'est nécessaire.
 
 ---
 
 ## 2. Installation du frontend
 
 ```bash
-cd frontend
+cd frontendVoteCount
 npm install
 ```
 
 ### Configuration `.env`
 
-Créez un fichier `.env` **à la racine du dossier frontend** (à côté de `package.json`) :
-
-```dotenv
-VITE_BACKEND_URL=http://localhost:8000
-VITE_FRONTEND_URL=http://localhost:5173
-
-# Doivent correspondre EXACTEMENT aux valeurs REVERB_* du backend
-VITE_REVERB_APP_KEY=une_cle_au_choix
-VITE_REVERB_HOST=localhost
-VITE_REVERB_PORT=8082
-VITE_REVERB_SCHEME=http
+```bash
+cp .env.example .env
 ```
 
-⚠️ **Ce fichier n'est jamais dans le dépôt Git** (normal, il est ignoré). Chaque membre de l'équipe doit le créer localement à partir de l'exemple ci-dessus.
+Le fichier `.env.example` du frontend contient déjà la structure attendue.
+Éditez `VITE_REVERB_APP_ID`, `VITE_REVERB_APP_KEY` et `VITE_REVERB_APP_SECRET`
+pour qu'ils soient **identiques** aux valeurs `REVERB_*` du backend.
+
+⚠️ **Ce fichier `.env` n'est jamais dans le dépôt Git** (il est ignoré).
+Chaque membre de l'équipe doit le créer localement à partir de `.env.example`.
 
 ---
 
-## 3. Lancer le projet
+## 3. Lancer le projet (installation manuelle)
 
-Le projet nécessite **3 process en parallèle**, chacun dans un terminal séparé :
+Le projet nécessite **4 process en parallèle**, chacun dans un terminal séparé :
 
 ```bash
 # Terminal 1 — API Laravel
-cd backend
+cd VoteCountProject3
 php artisan serve
 ```
 
 ```bash
 # Terminal 2 — Serveur WebSocket (résultats en temps réel)
-cd backend
+cd VoteCountProject3
 php artisan reverb:start
+```
 
+```bash
+# Terminal 3 — Worker de queue + scheduler (imports, calcul des résultats, OTP...)
+cd VoteCountProject3
 php artisan queue:work
-
 php artisan schedule:work
 ```
 
 ```bash
-# Terminal 3 — Frontend React
-cd frontend
+# Terminal 4 — Frontend React
+cd frontendVoteCount
 npm run dev
 ```
 
 Ouvrez ensuite **http://localhost:5173**.
 
-> Le serveur WebSocket (Terminal 2) est indispensable — sans lui, l'application
-> fonctionne mais aucun résultat ne se met à jour en direct.
+> Le serveur WebSocket (Terminal 2) et le worker de queue (Terminal 3) sont
+> indispensables — sans eux, l'application fonctionne mais aucun résultat ne
+> se met à jour en direct, et les imports d'électeurs restent bloqués sur
+> "import en cours".
+>
+> Pour éviter de lancer un worker séparé pendant le développement, vous
+> pouvez mettre `QUEUE_CONNECTION=sync` dans le `.env` backend — les jobs
+> s'exécutent alors immédiatement dans la requête qui les déclenche (Terminal
+> 3 devient inutile, mais un import volumineux ralentira la requête HTTP).
+
+---
+
+## Lancer avec Docker
+
+Alternative qui reproduit l'environnement de production (PostgreSQL, Redis,
+backend avec queue/scheduler/Reverb via supervisord, frontend buildé et servi
+par nginx) sans rien installer en local à part Docker.
+
+```bash
+# .env backend requis AVANT de lancer Docker (mêmes clés qu'en installation manuelle)
+cd VoteCountProject3 && cp .env.example .env && cd ..
+
+docker compose up -d --build
+```
+
+Puis, dans le conteneur backend :
+
+```bash
+docker compose exec backend php artisan key:generate
+docker compose exec backend php artisan migrate --force
+docker compose exec backend php artisan db:seed
+docker compose exec backend php artisan storage:link
+```
+
+Les services écoutent en local uniquement (`127.0.0.1`) :
+
+| Service  | Port(s)       |
+| -------- | ------------- |
+| Backend  | `8000` (API), `8080` (Reverb) |
+| Frontend | `3000`        |
+| Postgres | `5432`        |
+| Redis    | `6379`        |
+
+> Ce mode Docker est celui utilisé en production sur le VPS (voir
+> `.github/workflows/ci-cd.yml`). En local, l'installation manuelle
+> (section précédente) reste plus pratique pour itérer avec le hot-reload
+> de Vite.
+
+---
+
+## Sauvegardes de la base de données
+
+Le dossier [`scripts/`](scripts/) contient les scripts de sauvegarde
+PostgreSQL (utilisés automatiquement par le pipeline de déploiement avant
+chaque migration, et par un cron quotidien sur le VPS) :
+
+```bash
+./scripts/backup-db.sh manual 14   # sauvegarde manuelle immédiate
+./scripts/restore-db.sh            # liste les sauvegardes disponibles
+./scripts/restore-db.sh <fichier.sql.gz>   # restaure (destructif, confirmation requise)
+```
+
+Nécessite que les conteneurs Docker (`docker compose up`) soient démarrés —
+le `pg_dump`/`psql` s'exécute dans le conteneur `postgres`.
+
+---
+
+## Lancer les tests (backend)
+
+La configuration de test est définie directement dans `phpunit.xml` (pas
+besoin de `.env.testing`), y compris l'utilisateur/mot de passe PostgreSQL.
+Créez d'abord la base attendue :
+
+```bash
+createdb votecountproject3_test
+```
+
+⚠️ `phpunit.xml` a un `DB_PASSWORD` codé en dur (`tarsenek`) pour
+l'utilisateur `postgres`. Si votre PostgreSQL local a un autre mot de passe,
+soit alignez-le localement, soit modifiez temporairement `DB_PASSWORD` dans
+`phpunit.xml` **sans le commiter**.
+
+```bash
+cd VoteCountProject3
+php artisan test
+```
 
 ---
 
@@ -261,7 +318,7 @@ Utiliser un vrai numéro personnel en environnement démo ne déclenche **aucune
 
 ### "Origin not allowed" dans le terminal Reverb
 
-Le WebSocket refuse la connexion du navigateur. Vérifiez que `REVERB_ALLOWED_ORIGINS` (backend `.env`) contient exactement l'URL affichée par `npm run dev` (attention à `localhost` vs `127.0.0.1`, et au port). Après modification :
+Le WebSocket refuse la connexion du navigateur. Vérifiez que `REVERB_ALLOWED_ORIGINS` (backend `.env`) contient l'URL affichée par `npm run dev` (attention à `localhost` vs `127.0.0.1`, et au port). Après modification :
 
 ```bash
 php artisan config:clear
@@ -278,6 +335,13 @@ php artisan optimize:clear
 ```
 
 Si le comportement reste incohérent avec le code que vous voyez dans vos fichiers, redémarrez complètement le process `php artisan serve` (Ctrl+C puis relancer) — ne vous fiez pas uniquement à `optimize:clear`.
+
+### Un import (électeurs...) reste bloqué sur "import en cours"
+
+Le worker de queue (Terminal 3, `php artisan queue:work`) n'est pas lancé, ou
+a planté. Vérifiez qu'il tourne toujours ; relancez-le si besoin. En dernier
+recours pour du développement local, passez `QUEUE_CONNECTION=sync` dans le
+`.env` (les jobs s'exécutent alors de façon synchrone, sans worker).
 
 ### CamPay renvoie `ER201 — Maximum amount is 25.00 XAF`
 
@@ -322,3 +386,4 @@ php artisan db:seed
 - **Ne commitez jamais** vos fichiers `.env` (backend et frontend) — ils contiennent des secrets réels en production.
 - Les identifiants CamPay/Stripe/MTN/Orange de ce README sont des exemples de structure, pas de vraies clés.
 - Avant tout déploiement en production, remplacez `REVERB_ALLOWED_ORIGINS` par la liste stricte de vos vrais domaines (jamais de wildcard `*` en production).
+- L'authentification utilise exclusivement des cookies de session Sanctum (SPA) — jamais de token Bearer, même pour du débogage.

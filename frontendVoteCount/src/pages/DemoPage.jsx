@@ -38,7 +38,7 @@ const DemoPage = () => {
     };
 
     return (
-        <div className="min-h-screen bg-[var(--color-background-white)]">
+        <div className="min-h-screen bg-[var(--color-background-white)] pt-5">
             <div className="max-w-7xl mx-auto px-6 py-12 lg:py-20">
                 <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
 
@@ -156,9 +156,9 @@ const DemoPage = () => {
                         <div className="p-6 space-y-8">
                             {/* Date Picker */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Date de la démo</label>
                                 <TextInput
                                     type="date"
+                                    label="Date de la démo"
                                     value={selectedDate}
                                     onChange={(e) => setSelectedDate(e.target.value)}
                                     className="w-full"
