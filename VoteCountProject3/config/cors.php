@@ -34,7 +34,11 @@ return [
 
     'exposed_headers' => ['XSRF-TOKEN'],
 
-    'max_age' => 0,
+    // Durée (en secondes) pendant laquelle le navigateur met en cache la réponse
+    // au préflight CORS. À 0, il refaisait une requête OPTIONS AVANT CHAQUE appel
+    // d'API : le front étant sur un domaine distinct du back, chaque action
+    // coûtait deux allers-retours au lieu d'un. 24 h est la valeur usuelle.
+    'max_age' => 86400,
 
     'supports_credentials' => true,
 
