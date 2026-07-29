@@ -107,7 +107,7 @@ export default function UserModal({ data, onClose, onSave }) {
                         <option value="jury">Jury</option>
                         <option value="observer">Observateur</option>
                         <option value="candidat">Candidat</option>
-                        <option value="user">Votant</option>
+                        <option value="user">User</option>
                     </select>
 
                     <select

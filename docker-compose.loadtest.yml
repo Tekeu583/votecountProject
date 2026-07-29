@@ -1,0 +1,154 @@
+# ═══════════════════════════════════════════════════════════════
+# ENVIRONNEMENT DE TEST DE CHARGE — isolé de la stack habituelle
+# ═══════════════════════════════════════════════════════════════
+#
+# Fichier AUTONOME (ne pas combiner avec docker-compose.yml) : projet, réseau,
+# volumes et ports distincts, pour pouvoir mesurer sans perturber la stack de
+# développement ni entrer en conflit avec PostgreSQL/Redis installés en local.
+#
+# L'image backend est EXACTEMENT celle de la production (même Dockerfile, même
+# supervisord) : les chiffres obtenus sont donc représentatifs du serveur réel.
+#
+# Usage :
+#   docker compose -f docker-compose.loadtest.yml up -d --build
+#   docker compose -f docker-compose.loadtest.yml exec -T backend \
+#       php artisan db:seed --class=LoadTestSeeder --force
+#   ./scripts/load-test.sh http://127.0.0.1:8002 300
+#   docker compose -f docker-compose.loadtest.yml down -v
+#
+name: votecount-loadtest
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: votecount_loadtest
+      POSTGRES_USER: votecount
+      POSTGRES_PASSWORD: loadtest
+      TZ: Africa/Douala
+      PGTZ: Africa/Douala
+    # Aucun port publié : la base n'est jointe que par le backend, sur le
+    # réseau interne — évite tout conflit avec le PostgreSQL de la machine.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U votecount -d votecount_loadtest"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [loadtest]
+
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    command: redis-server --appendonly no --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [loadtest]
+
+  backend:
+    build:
+      context: ./VoteCountProject3
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis:    {condition: service_healthy}
+    # On reprend le .env du projet (pour APP_KEY notamment), puis on surcharge
+    # ci-dessous : `environment` est prioritaire sur `env_file`.
+    env_file:
+      - ./VoteCountProject3/.env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      LOG_LEVEL: error
+      DEBUGBAR_ENABLED: "false"
+
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: votecount_loadtest
+      DB_USERNAME: votecount
+      DB_PASSWORD: loadtest
+
+      REDIS_CLIENT: phpredis
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "null"
+
+      # Le limiteur `api` est codé en dur à 60 req/min dans AppServiceProvider :
+      # un test de charge mesurerait surtout des HTTP 429. Avec le store `array`
+      # le compteur ne survit pas à la requête, ce qui neutralise le limiteur
+      # SANS toucher au code. Effet de bord assumé : plus aucun cache applicatif,
+      # les chiffres obtenus sont donc PESSIMISTES (jamais surévalués).
+      # Nombre de processus du serveur HTTP PHP. NON DÉFINI en production =
+      # 1 seul processus, donc UNE requête traitée à la fois : le débit plafonne
+      # quel que soit le nombre d'utilisateurs. Décommenter pour mesurer le gain.
+      # PHP_CLI_SERVER_WORKERS: "8"
+
+      CACHE_STORE: array
+      CACHE_DRIVER: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: log
+      MAIL_MAILER: array
+    ports:
+      - "127.0.0.1:8002:8000"
+    networks: [loadtest]
+
+  # ─────────────────────────────────────────────────────────────
+  # VARIANTE COMPARATIVE : la même image, mais servie par php-fpm
+  # derrière nginx (port 8003) au lieu du serveur HTTP intégré de
+  # PHP (port 8002). Objectif : chiffrer le gain de la vraie
+  # architecture de production. `php:8.4-fpm` fournit déjà php-fpm.
+  # ─────────────────────────────────────────────────────────────
+  backend-fpm:
+    image: votecount-loadtest-backend:latest
+    restart: unless-stopped
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis:    {condition: service_healthy}
+    # On court-circuite l'entrypoint (migrations + caches déjà faits par
+    # `backend`) pour lancer directement php-fpm au premier plan.
+    entrypoint: ["php-fpm", "-F"]
+    env_file:
+      - ./VoteCountProject3/.env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      LOG_LEVEL: error
+      DEBUGBAR_ENABLED: "false"
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: votecount_loadtest
+      DB_USERNAME: votecount
+      DB_PASSWORD: loadtest
+      REDIS_CLIENT: phpredis
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "null"
+      CACHE_STORE: array
+      CACHE_DRIVER: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: log
+      MAIL_MAILER: array
+    networks: [loadtest]
+
+  nginx:
+    image: nginx:latest
+    restart: unless-stopped
+    depends_on: [backend-fpm]
+    volumes:
+      - ./VoteCountProject3/docker/loadtest-fpm-nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "127.0.0.1:8003:80"
+    networks: [loadtest]
+
+networks:
+  loadtest:
+    driver: bridge

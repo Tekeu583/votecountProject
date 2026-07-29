@@ -70,6 +70,8 @@ const CommencerAujourdhui = () => {
     const validate = () => {
         const e = {};
         if (!formData.name.trim()) e.name = "Le nom de l'organisation est requis.";
+        if (!formData.email.trim()) e.email = "L'email est requis.";
+        if (!formData.address.trim()) e.address = "L'adresse est requise.";
         return e;
     };
 
@@ -180,6 +182,7 @@ const CommencerAujourdhui = () => {
                                         iconLeft={Mail}
                                         value={formData.email}
                                         onChange={handleChange}
+                                        required
                                         error={errors.email}
                                     />
                                     <TextInput
@@ -200,6 +203,7 @@ const CommencerAujourdhui = () => {
                                         value={formData.address}
                                         name="address"
                                         onChange={handleChange}
+                                        required
                                         error={errors.address}
                                     />
                                     <TextInput

@@ -21,7 +21,9 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         if ($this->app->environment('local')) {
-            $this->app->register(\Laravel\Telescope\TelescopeServiceProvider::class);
+            if (class_exists(\Laravel\Telescope\TelescopeServiceProvider::class)) {
+                $this->app->register(\Laravel\Telescope\TelescopeServiceProvider::class);
+            }
             $this->app->singleton(\App\Services\PaymentGateway::class);
         }
     }
@@ -61,13 +63,6 @@ class AppServiceProvider extends ServiceProvider
                 }
             });
         }
-        // Postgres laisse une transaction "avortée" (25P02) sur la connexion
-        // tant qu'aucun ROLLBACK explicite n'est fait — un worker de queue
-        // garde la même connexion entre chaque job, donc une seule requête
-        // en échec silencieux (ex: event() catché en interne) contaminait
-        // TOUS les jobs suivants du même process (dont l'envoi d'OTP, d'où
-        // les "code invalide" alors que l'email n'était jamais parti).
-        // On force une reconnexion propre dès qu'un job lève une exception.
         Event::listen(function (JobExceptionOccurred $event) {
             DB::disconnect();
         });

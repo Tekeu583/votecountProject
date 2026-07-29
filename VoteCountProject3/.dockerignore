@@ -1,0 +1,48 @@
+# Contexte de build Docker — ce qui NE DOIT PAS entrer dans l'image.
+#
+# Sans ce fichier, le `COPY . .` du Dockerfile embarque tout le dossier local,
+# ce qui provoquait deux problèmes :
+#   1. Sécurité : le .env (secrets de production) se retrouvait figé dans les
+#      couches de l'image. Les variables sont fournies au runtime par
+#      docker-compose (env_file / environment), jamais par l'image.
+#   2. Build cassé : bootstrap/cache/*.php compilé en local référence des
+#      paquets de développement (Telescope). Une fois copié dans l'image,
+#      `composer install --no-dev` échouait sur
+#      "Class Laravel\Telescope\TelescopeServiceProvider not found".
+
+# Secrets et configuration locale
+.env
+.env.*
+!.env.example
+
+# Dépendances : réinstallées dans l'image (composer install / npm ci)
+vendor/
+node_modules/
+
+# Caches compilés localement — doivent être régénérés DANS l'image.
+# On exclut le CONTENU, pas les dossiers : Laravel exige que
+# storage/framework/{views,cache,sessions} existent (view:cache échoue sinon
+# avec « View path not found »). Les .gitignore de ces dossiers les préservent.
+bootstrap/cache/*.php
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/framework/testing/*
+storage/logs/*
+!**/.gitignore
+.phpunit.cache/
+.phpunit.result.cache
+
+# Outils de développement et tests (image construite avec --no-dev)
+tests/
+.git/
+.github/
+.idea/
+.vscode/
+
+# Divers
+*.md
+*.log
+Dockerfile
+.dockerignore
+docker-compose*.yml

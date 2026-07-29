@@ -86,8 +86,9 @@ class ElectionRepository extends BaseRepository implements ElectionRepositoryInt
 
         return $query
             ->with([
-                'organization',
+                'organization' => fn ($q) => $q->withCount(['elections', 'users']),
                 'organization.subscriptionPlan',
+                'organization.subscriptions',
                 'creator',
                 'creator.roles.permissions',
             ])
@@ -148,20 +149,9 @@ class ElectionRepository extends BaseRepository implements ElectionRepositoryInt
         $query = $this->model->query();
         $user  = $request->user();
 
-        // • Tous les autres : ne voient que les élections de leurs organisations.
-        //   Si organization_id est passé, on vérifie qu'il appartient bien à l'user.
-        // organization_id est un reliquat de deux anciens appels frontend
-        // (CreateScrutin.jsx, SubscriptionPage.jsx) — organization_uuid est
-        // la convention utilisée partout ailleurs (Scrutins.jsx, DashboardHome,
-        // Electeurs, Jurys, Equipe, Corbeille, Resultats...). On accepte les
-        // deux pour ne rien casser côté frontend.
         $organizationUuid = $request->input('organization_uuid', $request->input('organization_id'));
 
         if ($user && $user->hasRole('super_admin')) {
-            // Super admin — filtre optionnel par uuid d'organisation. Sans ce
-            // filtre, un super admin qui bascule sur le dashboard de SA PROPRE
-            // organisation voyait toutes les élections de la plateforme, faute
-            // de restriction par défaut (contrairement à la branche "sinon").
             if ($organizationUuid) {
                 $query->whereHas('organization', function ($q) use ($organizationUuid) {
                     $q->where('uuid', $organizationUuid);
@@ -203,17 +193,9 @@ class ElectionRepository extends BaseRepository implements ElectionRepositoryInt
 
         return $query
             ->with([
-                // withCount/subscriptions sur 'organization' : sans ça,
-                // OrganizationResource relance 4 requêtes (abonnement actif x2,
-                // nb élections, nb membres) PAR élection listée (même correctif
-                // que OrganizationController::index()/getCandidates()).
                 'organization' => fn ($q) => $q->with(['subscriptionPlan', 'subscriptions', 'owner.roles.permissions'])->withCount(['elections', 'users']),
                 'creator.roles.permissions',
                 'candidates',
-                // withCount('candidates') sur la catégorie : sans ça,
-                // CategoryResource relance candidates()->count() PAR candidat
-                // affiché (une élection avec catégories peut afficher
-                // plusieurs candidats partageant la même catégorie).
                 'candidates.category' => fn ($q) => $q->withCount('candidates'),
             ])
             ->withCount(['votes', 'candidates', 'electors'])
