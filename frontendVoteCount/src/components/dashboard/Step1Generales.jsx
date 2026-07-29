@@ -98,11 +98,7 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
         election_mode: initialData.election_mode || initialData.typeAccess || 'public',
         vote_type: initialData.vote_type || 'single',
         visibility_type: initialData.visibility_type || 'public',
-        // Invariant : le vote multiple impose une élection payante. On force
-        // 'paid' à l'initialisation pour couvrir la reprise d'un brouillon
-        // multiple + free créé avant ce garde-fou (le changement en direct est
-        // géré par handleVoteTypeChange, la sélection de "free" est verrouillée
-        // dans le rendu).
+      
         payment_type: initialData.vote_type === 'multiple'
             ? 'paid'
             : (initialData.payment_type || (initialData.isPaid ? 'paid' : 'free')),
@@ -273,8 +269,6 @@ const Step1Generales = ({ onNext, initialData = {}, totalSteps = 4, }) => {
             dataToSend.jury_weight = form.jury_weight_pct / 100;
         }
 
-        // max_choices n'a de sens que pour le vote multiple ; ailleurs on
-        // envoie null (colonne nullable côté backend).
         dataToSend.max_choices = form.vote_type === 'multiple'
             ? Number(form.max_choices)
             : null;
