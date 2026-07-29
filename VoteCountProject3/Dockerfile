@@ -1,5 +1,11 @@
 # ═══════════════════════════════════════════════════════════════
-# BACKEND LARAVEL — PHP 8.4 + PostgreSQL + Redis (phpredis)
+# BACKEND LARAVEL — PHP 8.4-FPM + Nginx (via supervisord)
+# ═══════════════════════════════════════════════════════════════
+# CHANGEMENTS vs version précédente :
+#   - Installation de nginx dans le conteneur
+#   - PHP-FPM remplace `php artisan serve` (multi-processus, prod-ready)
+#   - supervisord orchestre : nginx + php-fpm + queue + scheduler + reverb
+#   - Nginx écoute sur 8000, transmet vers php-fpm 127.0.0.1:9000
 # ═══════════════════════════════════════════════════════════════
 FROM php:8.4-fpm
 
@@ -17,6 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
     supervisor \
+    nginx \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
@@ -55,6 +62,28 @@ RUN { \
     echo "max_execution_time=120"; \
     } > /usr/local/etc/php/conf.d/prod.ini
 
+# -- Config PHP-FPM pool ----------------------------------------
+# On tune le pool pour de la vraie prod : dynamique, jusqu'à 20 workers.
+# Adapté à un VPS 4 CPU / 8 GB RAM. Chaque worker ~40 Mo → 800 Mo max.
+RUN { \
+    echo "[www]"; \
+    echo "user = www-data"; \
+    echo "group = www-data"; \
+    echo "listen = 127.0.0.1:9000"; \
+    echo "listen.owner = www-data"; \
+    echo "listen.group = www-data"; \
+    echo "pm = dynamic"; \
+    echo "pm.max_children = 20"; \
+    echo "pm.start_servers = 4"; \
+    echo "pm.min_spare_servers = 2"; \
+    echo "pm.max_spare_servers = 6"; \
+    echo "pm.max_requests = 500"; \
+    echo "clear_env = no"; \
+    echo "catch_workers_output = yes"; \
+    echo "decorate_workers_output = no"; \
+    echo "access.log = /proc/self/fd/2"; \
+    } > /usr/local/etc/php-fpm.d/www.conf
+
 # -- Copie du code ----------------------------------------------
 WORKDIR /var/www/html
 COPY . .
@@ -67,8 +96,15 @@ RUN composer install \
     --no-progress
 
 # -- Permissions ------------------------------------------------
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
+# www-data doit posséder storage/ et bootstrap/cache/ pour PHP-FPM
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+
+# -- Config Nginx dans le conteneur -----------------------------
+COPY docker/nginx.conf /etc/nginx/sites-available/default
+RUN ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default \
+    && rm -f /etc/nginx/sites-enabled/default.dpkg-dist
 
 # -- Supervisord config ----------------------------------------─
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
@@ -76,6 +112,9 @@ COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 # -- Entrypoint ------------------------------------------------─
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Créer le dossier PID de nginx s'il n'existe pas
+RUN mkdir -p /var/run/nginx && chown -R www-data:www-data /var/run/nginx
 
 EXPOSE 8000 8080
 
