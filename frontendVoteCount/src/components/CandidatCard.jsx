@@ -24,7 +24,7 @@ const CandidateCard = ({ candidate, electionUuid, isSelected, onVote, viewCandid
                 <button onClick={() => viewCandidateDetails(electionUuid, candidate)}
                     className='w-full'>
                     <img
-                        src={candidate.photo || 'https://i.pravatar.cc/1200?u='.candidate.full_name}
+                        src={candidate.photo || `https://i.pravatar.cc/1200?u=${encodeURIComponent(candidate.full_name ?? '')}`}
                         alt={candidate.full_name}
                         className="w-full h-90 object-cover group-hover:scale-105 transition-transform duration-500"
                     />
