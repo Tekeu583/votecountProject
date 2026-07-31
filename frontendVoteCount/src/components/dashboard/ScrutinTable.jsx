@@ -1,11 +1,22 @@
-import { Eye, ChevronLeft, ChevronRight } from "lucide-react";
+import { Eye, ChevronLeft, ChevronRight, Share2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { useState, useMemo } from "react";
+import ShareCandidateModal from "@components/dashboard/ShareCandidateModal";
+
+/**
+ * Lien de campagne du candidat : page publique ne montrant que lui.
+ * `from=share` indique à la page cible que le visiteur arrive d'un partage,
+ * pour que « Retour » le renvoie vers la liste des élections plutôt que vers
+ * un historique de navigation inexistant.
+ */
+const buildShareUrl = (electionUuid, candidateUuid) =>
+    `${window.location.origin}/details/candidat/election/${electionUuid}/candidate/${candidateUuid}?from=share`;
 
 export default function ScrutinTable({ data }) {
     const navigate = useNavigate();
     const [currentPage, setCurrentPage] = useState(1);
+    const [sharing, setSharing] = useState(null);
     const itemsPerPage = 10;
 
     const paginatedClassement = useMemo(() => {
@@ -64,11 +75,19 @@ export default function ScrutinTable({ data }) {
                                 <td className="text-right">
                                     <button
                                         onClick={() => navigate(`/candidat/results/${scrutin.id}`)}
-                                        className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800"
+                                        className="inline-flex mx-1 text-blue-600 hover:text-blue-800" title="voir les resultats"
                                     >
                                         <Eye size={16} />
-                                        Voir
                                     </button>
+                                    {scrutin.shareable && (
+                                        <button
+                                            onClick={() => setSharing(scrutin)}
+                                            className="inline-flex mx-1 text-blue-600 hover:text-blue-800"
+                                            title="Partager ma campagne"
+                                        >
+                                            <Share2 size={16} />
+                                        </button>
+                                    )}
                                 </td>
                             </tr>
                         ))}
@@ -97,6 +116,15 @@ export default function ScrutinTable({ data }) {
                         className="px-3 py-1 border rounded"><ChevronRight size={16} /></button>
                 </div>
             </div>
+
+            {sharing && (
+                <ShareCandidateModal
+                    shareUrl={buildShareUrl(sharing.id, sharing.candidateUuid)}
+                    candidateName={sharing.candidateName}
+                    electionTitle={sharing.name}
+                    onClose={() => setSharing(null)}
+                />
+            )}
         </div>
     );
 }

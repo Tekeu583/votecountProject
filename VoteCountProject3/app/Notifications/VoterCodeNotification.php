@@ -45,8 +45,8 @@ class VoterCodeNotification extends Notification implements ShouldQueue
             ->view('emails.voter-code', [
                 'election' => $this->election,
                 'electorFullName' => $this->elector->full_name,
-                "dateStart" => $this->election->start_date->format('d/m/Y à H:i'),
-                "dateEnd" => $this->election->end_date->format('d/m/Y à H:i'),
+                "dateStart" => $this->election->start_at?->format('d/m/Y à H:i') ?? 'À définir',
+                "dateEnd" => $this->election->end_at?->format('d/m/Y à H:i') ?? 'À définir',
                 'voterCode' => $formattedCode,
                 'voteUrl' => $voteUrl,
             ]);

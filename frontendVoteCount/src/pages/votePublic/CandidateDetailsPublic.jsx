@@ -1,4 +1,4 @@
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Medal, Trophy, ArrowLeft, Vote, CheckCircle2, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -9,6 +9,13 @@ const CandidateDetailsPublic = () => {
     const { electionUuid, candidateUuid } = useParams();
     const navigate = useNavigate();
     const { state } = useLocation();
+    const [searchParams] = useSearchParams();
+
+    // Visiteur arrivé par un lien de campagne partagé (WhatsApp, Facebook...) :
+    // son onglet n'a aucun historique, `navigate(-1)` le ferait sortir du site.
+    // On le renvoie donc vers la liste des élections publiques.
+    const fromShare = searchParams.get('from') === 'share';
+    const goBack = () => (fromShare ? navigate('/elections') : navigate(-1));
 
     const [loadingPage, setLoadingPage] = useState(false);
     const [voting, setVoting] = useState(false);
@@ -152,7 +159,7 @@ const CandidateDetailsPublic = () => {
         <div className="bg-[var(--color-background-white)] pt-18 px-6">
             <div className="gap-2 mb-6">
                 <button
-                    onClick={() => navigate(-1)}
+                    onClick={goBack}
                     className="flex items-center gap-2 text-gray-900 hover:text-gray-900 font-medium"
                 >
                     <ArrowLeft size={20} /> Retour

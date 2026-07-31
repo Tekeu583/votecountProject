@@ -55,6 +55,14 @@ export default function Scrutins() {
             name: c.election.title,
             status: statusLabel(c.election.status),
             rank: c.rank_label ?? '-',
+
+            // Partage de campagne : réservé aux élections publiques, et
+            // seulement tant qu'un vote reste possible (inutile de diffuser le
+            // lien d'un brouillon ou d'un scrutin déjà clos).
+            shareable: c.election.election_mode === 'public'
+                && ['published', 'ongoing'].includes(c.election.status),
+            candidateUuid: c.uuid,
+            candidateName: c.full_name,
         })), [candidacies]);
 
     const scrutins = useMemo(() => allScrutins
