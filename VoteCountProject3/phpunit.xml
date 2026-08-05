@@ -35,6 +35,8 @@
         <env name="MAIL_MAILER" value="array"/>
         <env name="BROADCAST_DRIVER" value="log"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
+        <!-- Audit desactive par defaut : un test dedie le reactive via config(). -->
+        <env name="AUDIT_ENABLED" value="false"/>
     </php>
     <source>
         <include>

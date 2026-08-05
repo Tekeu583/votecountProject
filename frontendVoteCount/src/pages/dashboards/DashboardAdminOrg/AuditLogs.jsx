@@ -4,7 +4,8 @@ import {
   Search,
   RefreshCw,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Eye
 } from 'lucide-react';
 import TextInput from '@components/ui/TextInput';
 import toast from 'react-hot-toast';
@@ -12,6 +13,7 @@ import { FadeLoader } from 'react-spinners';
 import { useDebounce } from '@hooks/useDebounce';
 import { useOrg } from '@hooks/useOrg';
 import { auditApi } from '@services/api';
+import AuditDetailModal from '@components/AuditDetailModal';
 
 const ACTION_OPTIONS = [
   { value: '', label: 'Tous les types' },
@@ -39,6 +41,8 @@ const AuditLogs = () => {
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState([]);
   const [meta, setMeta] = useState({ total: 0, last_page: 1 });
+  // Entrée dont le détail est ouvert dans la modale, ou null.
+  const [detailLog, setDetailLog] = useState(null);
 
   const loadLogs = useCallback(async () => {
     if (!org?.uuid) return;
@@ -188,15 +192,17 @@ const AuditLogs = () => {
               <th className="text-left py-2 px-2 font-medium text-[var(--color-dark)]">ACTION / TYPE</th>
               <th className="text-left py-2 px-2 font-medium text-[var(--color-dark)]">RESSOURCE</th>
               <th className="text-left py-2 px-2 font-medium text-[var(--color-dark)]">ADRESSE IP</th>
+              <th className="text-left py-2 px-2 font-medium text-[var(--color-dark)]">DÉTAIL</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--color-gray-light)]">
             {loading ? (
-              <tr><td colSpan={5} className="text-center py-10"><FadeLoader color="#1e40af" cssOverride={{ display: 'inline-block' }} /></td></tr>
+              <tr><td colSpan={6} className="text-center py-10"><FadeLoader color="#1e40af" cssOverride={{ display: 'inline-block' }} /></td></tr>
             ) : logs.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-10 text-[var(--color-gray)]">Aucun journal trouvé</td></tr>
+              <tr><td colSpan={6} className="text-center py-10 text-[var(--color-gray)]">Aucun journal trouvé</td></tr>
             ) : logs.map((log) => (
-              <tr key={log.uuid} className="hover:bg-[var(--color-gray-light)] transition-colors">
+              <React.Fragment key={log.uuid}>
+              <tr className="hover:bg-[var(--color-gray-light)] transition-colors">
                 <td className="px-4 py-2">
                   <p className="font-medium whitespace-nowrap">{new Date(log.created_at).toLocaleString('fr-FR')}</p>
                 </td>
@@ -219,7 +225,23 @@ const AuditLogs = () => {
                 <td className="px-4 py-2 text-[var(--color-gray)] text-sm">{log.entity_label} #{log.entity_id}</td>
 
                 <td className="px-4 py-2 font-mono text-sm text-[var(--color-gray)] whitespace-nowrap">{log.ip_address ?? '—'}</td>
+
+                <td className="px-4 py-2">
+                  {log.changes?.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setDetailLog(log)}
+                      className="inline-flex items-center gap-1 text-sm text-[var(--color-primary)] hover:underline whitespace-nowrap"
+                    >
+                      <Eye size={14} />
+                      {log.changes.length} champ{log.changes.length > 1 ? 's' : ''}
+                    </button>
+                  ) : (
+                    <span className="text-sm text-[var(--color-gray)]">—</span>
+                  )}
+                </td>
               </tr>
+              </React.Fragment>
             ))}
           </tbody>
         </table>
@@ -253,6 +275,10 @@ const AuditLogs = () => {
           </button>
         </div>
       </div>
+
+      {detailLog && (
+        <AuditDetailModal log={detailLog} onClose={() => setDetailLog(null)} />
+      )}
     </div>
   );
 };

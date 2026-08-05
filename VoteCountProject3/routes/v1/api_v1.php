@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\V1\Payments\RevenueController;
 use App\Http\Controllers\Api\V1\Payments\WithdrawalController;
 use App\Http\Controllers\Api\V1\Results\ResultController;
 use App\Http\Controllers\Api\V1\Settings\SettingController;
+use App\Http\Controllers\Api\V1\Share\CandidateShareController;
 use App\Http\Controllers\Api\V1\SubscriptionPlans\SubscriptionPlanController;
 use App\Http\Controllers\Api\V1\Trash\TrashController;
 use App\Http\Controllers\Api\V1\Users\UserController;
@@ -129,6 +130,13 @@ Route::prefix('elections')->group(function () {
     Route::get('/open-for-candidacy', [ElectionController::class, 'openForCandidacy']);
     Route::get('/{election}/public-show', [ElectionController::class, 'publicShow']);
 });
+
+// ========== APERÇU DES LIENS PARTAGÉS (robots des réseaux sociaux) ==========
+// Renvoie du HTML, pas du JSON : WhatsApp/Facebook n'exécutent pas JavaScript
+// et ont besoin de balises Open Graph propres au candidat partagé. Le nginx du
+// frontend y aiguille les robots ; les humains reçoivent la SPA.
+Route::get('share/elections/{election}/candidates/{candidate}', [CandidateShareController::class, 'show'])
+    ->name('share.candidate');
 
 // Plans actifs (public)
 Route::get('subscription-plans/active', [SubscriptionPlanController::class, 'getActivePlans']);

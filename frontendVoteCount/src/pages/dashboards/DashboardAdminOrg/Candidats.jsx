@@ -29,6 +29,35 @@ const StatusBadge = ({ status }) => {
 
 const PER_PAGE = 15;
 
+// Suivi de l'import : l'API répond 202 (traitement mis en file), il faut donc
+// interroger son statut jusqu'à ce qu'il aboutisse.
+const IMPORT_POLL_MS = 2000;
+const IMPORT_MAX_ATTEMPTS = 45; // ~90 s, au-delà on rend la main à l'utilisateur
+
+/**
+ * Interroge le statut de l'import jusqu'à son terme.
+ * @returns les données finales, ou null si le délai est dépassé (le traitement
+ *          continue côté serveur, on évite simplement d'attendre indéfiniment).
+ */
+const pollImportStatus = async (electionUuid, jobId) => {
+  for (let attempt = 0; attempt < IMPORT_MAX_ATTEMPTS; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, IMPORT_POLL_MS));
+
+    try {
+      const res = await candidatesApi.importStatus(electionUuid, jobId);
+      const data = res.data?.data;
+
+      if (data?.status === 'completed' || data?.status === 'failed') {
+        return data;
+      }
+    } catch {
+      // Erreur réseau ponctuelle : on retente au tour suivant.
+    }
+  }
+
+  return null;
+};
+
 export default function Candidats() {
   const { org } = useOrg();
 
@@ -188,9 +217,42 @@ export default function Candidats() {
       if (!file) return;
       const toastId = toast.loading('Import en cours...');
       try {
-        await candidatesApi.import(electionFilter, file);
-        toast.success('Import réussi !', { id: toastId });
-        loadData(1);
+        // L'API répond 202 : elle a seulement MIS EN FILE le traitement.
+        // Annoncer le succès ici afficherait « Import réussi » alors qu'aucun
+        // candidat n'est encore créé — et masquerait les lignes rejetées.
+        const res = await candidatesApi.import(electionFilter, file);
+        const jobId = res.data?.data?.import_job_id;
+        if (!jobId) throw new Error('Identifiant de traitement non reçu.');
+
+        const result = await pollImportStatus(electionFilter, jobId);
+
+        if (!result) {
+          toast(
+            'Import toujours en cours. Rafraîchissez la page dans quelques instants.',
+            { id: toastId, icon: '⏳' },
+          );
+          return;
+        }
+
+        const { status, success_rows: ok = 0, failed_rows: ko = 0, errors = [] } = result;
+
+        if (status === 'completed' && ok > 0) {
+          toast.success(`${ok} candidat(s) importé(s).`, { id: toastId });
+          loadData(1);
+        } else {
+          toast.error('Aucun candidat importé.', { id: toastId });
+        }
+
+        // Les lignes rejetées sont détaillées : sans leur numéro et leur motif,
+        // l'utilisateur ne peut pas corriger son fichier.
+        if (ko > 0) {
+          const detail = errors
+            .slice(0, 3)
+            .map((e) => `Ligne ${e.row} : ${e.message}`)
+            .join('\n');
+          const reste = errors.length > 3 ? `\n… et ${errors.length - 3} autre(s).` : '';
+          toast.error(`${ko} ligne(s) rejetée(s).\n${detail}${reste}`, { duration: 10000 });
+        }
       } catch (err) {
         toast.error(err.response?.data?.message ?? 'Erreur d\'import.', { id: toastId });
       }

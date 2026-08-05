@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Download,
   Info,
-  Eye,
   X,
   Search,
   ChevronLeft,
@@ -15,6 +14,7 @@ import TextInput from '@components/ui/TextInput';
 import { useExport } from '@/hooks/useExport';
 import { formatAuditLogs } from '@/utils/export/formatData';
 import { auditApi, organizationsApi } from '@services/api';
+import AuditDetailModal from '@components/AuditDetailModal';
 import { useDebounce } from '@hooks/useDebounce';
 
 const ACTION_OPTIONS = [
@@ -25,18 +25,22 @@ const ACTION_OPTIONS = [
   { value: 'forceDeleted', label: 'Supprimé définitivement' },
 ];
 
-const MetadataCell = ({ log }) => (
-  <button
-    onClick={() =>
-      toast(
-        <pre className="bg-black text-white p-3 rounded text-xs max-w-xs overflow-auto">
-          {JSON.stringify({ avant: log.old_values, après: log.new_values }, null, 2)}
-        </pre>
-      )
-    }
-  >
-    <Info size={16} />
-  </button>
+// Le détail était auparavant déversé en JSON brut dans une notification :
+// illisible dès qu'une création journalise une trentaine de champs.
+const MetadataCell = ({ log, onOpen }) => (
+  log.changes?.length > 0 ? (
+    <button
+      type="button"
+      onClick={() => onOpen(log)}
+      className="inline-flex items-center gap-1 text-sm text-[var(--color-primary)] hover:underline whitespace-nowrap"
+      title="Voir le détail des changements"
+    >
+      <Info size={16} />
+      {log.changes.length}
+    </button>
+  ) : (
+    <span className="text-sm text-[var(--color-gray)]">—</span>
+  )
 );
 
 
@@ -48,6 +52,8 @@ const EMPTY_PAGE = {
 const AuditLogsPage = () => {
   const { handleExport } = useExport();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  // Entrée dont le détail est ouvert dans la modale, ou null.
+  const [detailLog, setDetailLog] = useState(null);
   const [actionFilter, setActionFilter] = useState('');
   const [orgFilter, setOrgFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -235,7 +241,7 @@ const AuditLogsPage = () => {
                   <td className='px-4 py-2'>{log.user?.name ?? '—'}</td>
                   <td className='px-4 py-2'>{log.ip_address ?? '—'}</td>
                   <td className='text-center' >
-                    <MetadataCell log={log} />
+                    <MetadataCell log={log} onOpen={setDetailLog} />
                   </td>
                 </tr>
               ))}
@@ -273,6 +279,10 @@ const AuditLogsPage = () => {
           </div>
         )}
       </div>
+
+      {detailLog && (
+        <AuditDetailModal log={detailLog} onClose={() => setDetailLog(null)} />
+      )}
     </div>
   );
 };
